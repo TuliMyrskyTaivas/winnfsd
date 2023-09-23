@@ -180,7 +180,7 @@ static void start(std::vector<std::vector<std::string>> paths)
 {
 	int i;
 	CDatagramSocket DatagramSockets[SOCKET_NUM];
-	CServerSocket ServerSockets[SOCKET_NUM];
+	ServerSocket ServerSockets[SOCKET_NUM];
 	bool bSuccess;
 	hostent *localHost;
 

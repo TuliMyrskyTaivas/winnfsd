@@ -2,8 +2,8 @@
 
 CDatagramSocket::CDatagramSocket()
 {
-    m_nPort = 0;
-    m_bClosed = true;
+    m_port = 0;
+    m_closed = true;
     m_pSocket = NULL;
 }
 
@@ -14,7 +14,7 @@ CDatagramSocket::~CDatagramSocket()
 
 void CDatagramSocket::SetListener(ISocketListener *pListener)
 {
-    m_pListener = pListener;
+    m_listener = pListener;
 }
 
 bool CDatagramSocket::Open(int nPort)
@@ -23,7 +23,7 @@ bool CDatagramSocket::Open(int nPort)
 
     Close();
 
-    m_nPort = nPort;
+    m_port = nPort;
     m_Socket = socket(AF_INET, SOCK_DGRAM, 0);
 
     if (m_Socket == INVALID_SOCKET) {
@@ -39,7 +39,7 @@ bool CDatagramSocket::Open(int nPort)
 
     memset(&localAddr, 0, sizeof(localAddr));
     localAddr.sin_family = AF_INET;
-    localAddr.sin_port = htons(static_cast<u_short>(m_nPort));
+    localAddr.sin_port = htons(static_cast<u_short>(m_port));
 	localAddr.sin_addr.s_addr = inet_addr(g_sInAddr);
 	if (localAddr.sin_addr.s_addr == INADDR_NONE) {
 		g_sInAddr = "0.0.0.0";
@@ -51,23 +51,23 @@ bool CDatagramSocket::Open(int nPort)
         return false;
     }
 
-    m_bClosed = false;
+    m_closed = false;
     m_pSocket = new Socket(SOCK_DGRAM);
-    m_pSocket->Open(m_Socket, m_pListener);  //wait for receiving data
+    m_pSocket->Open(m_Socket, m_listener);  //wait for receiving data
     return true;
 }
 
 void CDatagramSocket::Close(void)
 {
-    if (m_bClosed) {
+    if (m_closed) {
         return;
     }
 
-    m_bClosed = true;
+    m_closed = true;
     delete m_pSocket;
 }
 
 int CDatagramSocket::GetPort(void)
 {
-    return m_nPort;
+    return m_port;
 }

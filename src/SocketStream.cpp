@@ -1,166 +1,202 @@
+/////////////////////////////////////////////////////////////////////
+/// file: SocketStream.h
+///
+/// summary: stream I/O for the socket
+/////////////////////////////////////////////////////////////////////
+
 #include "SocketStream.h"
-#include <string.h>
+#include <cstring>
+#include <cstdio>
 
 #define MAXDATA (1024 * 1024)
 
-CSocketStream::CSocketStream()
+/////////////////////////////////////////////////////////////////////
+SocketStream::SocketStream()
+    : m_inBuffer(new unsigned char[MAXDATA])
+    , m_outBuffer(new unsigned char[MAXDATA])
+    , m_inBufferIndex(0)
+    , m_inBufferSize(0)
+    , m_outBufferIndex(0)
+    , m_outBufferSize(0)
+{}
+
+/////////////////////////////////////////////////////////////////////
+SocketStream::~SocketStream()
 {
-    m_pInBuffer = new unsigned char[MAXDATA];
-    m_pOutBuffer = new unsigned char[MAXDATA];
-    m_nInBufferIndex = m_nInBufferSize = 0;
-    m_nOutBufferIndex = m_nOutBufferSize = 0;
+    delete[] m_inBuffer;
+    delete[] m_outBuffer;
 }
 
-CSocketStream::~CSocketStream()
+/////////////////////////////////////////////////////////////////////
+unsigned char* SocketStream::GetInput() noexcept
 {
-    delete[] m_pInBuffer;
-    delete[] m_pOutBuffer;
+    return m_inBuffer;
 }
 
-unsigned char *CSocketStream::GetInput(void)
+/////////////////////////////////////////////////////////////////////
+void SocketStream::SetInputSize(unsigned int size)
 {
-    return m_pInBuffer;
+    m_inBufferIndex = 0;  //seek to the beginning of the input buffer
+    m_inBufferSize = size;
 }
 
-void CSocketStream::SetInputSize(unsigned int nSize)
+/////////////////////////////////////////////////////////////////////
+unsigned char* SocketStream::GetOutput() noexcept
 {
-    m_nInBufferIndex = 0;  //seek to the beginning of the input buffer
-    m_nInBufferSize = nSize;
+    return m_outBuffer;  //output buffer
 }
 
-unsigned char *CSocketStream::GetOutput(void)
+/////////////////////////////////////////////////////////////////////
+unsigned int SocketStream::GetOutputSize() const noexcept
 {
-    return m_pOutBuffer;  //output buffer
+    return m_outBufferSize;  //number of bytes of data in the output buffer
 }
 
-unsigned int CSocketStream::GetOutputSize(void)
-{
-    return m_nOutBufferSize;  //number of bytes of data in the output buffer
-}
-
-unsigned int CSocketStream::GetBufferSize(void)
+/////////////////////////////////////////////////////////////////////
+unsigned int SocketStream::GetBufferSize() const noexcept
 {
     return MAXDATA;  //size of input/output buffer
 }
 
-unsigned int CSocketStream::Read(void *pData, unsigned int nSize)
+/////////////////////////////////////////////////////////////////////
+unsigned int SocketStream::Read(void *data, unsigned int size)
 {
-    if (nSize > m_nInBufferSize - m_nInBufferIndex) { //over the number of bytes of data in the input buffer
-        nSize = m_nInBufferSize - m_nInBufferIndex;
+    if (size > m_inBufferSize - m_inBufferIndex) { //over the number of bytes of data in the input buffer
+        size = m_inBufferSize - m_inBufferIndex;
     }
 
-    memcpy(pData, m_pInBuffer + m_nInBufferIndex, nSize);
-    m_nInBufferIndex += nSize;
+    memcpy(data, m_inBuffer + m_inBufferIndex, size);
+    m_inBufferIndex += size;
 
-    return nSize;
+    return size;
 }
 
-unsigned int CSocketStream::Read(unsigned long *pnValue)
+/////////////////////////////////////////////////////////////////////
+unsigned int SocketStream::Read(unsigned long* value)
 {
-    unsigned int i, n;
-    unsigned char *p, pBuffer[sizeof(unsigned long)];
+    unsigned char buffer[sizeof(unsigned long)];
 
-    p = (unsigned char *)pnValue;
-    n = Read(pBuffer, sizeof(unsigned long));
+    unsigned char* p = reinterpret_cast<unsigned char*>(value);
+    const unsigned int n = Read(buffer, sizeof(unsigned long));
 
-    for (i = 0; i < n; i++) { //reverse byte order
-        p[sizeof(unsigned long)-1 - i] = pBuffer[i];
-    }
-
-    return n;
-}
-
-unsigned int CSocketStream::Read8(unsigned __int64 *pnValue)
-{
-    unsigned int i, n;
-    unsigned char *p, pBuffer[sizeof(unsigned __int64)];
-
-    p = (unsigned char *)pnValue;
-    n = Read(pBuffer, sizeof(unsigned __int64));
-
-    for (i = 0; i < n; i++) { //reverse byte order
-        p[sizeof(unsigned __int64)-1 - i] = pBuffer[i];
+    for (unsigned int i = 0; i < n; i++) // reverse byte order
+    { 
+        p[sizeof(unsigned long) - 1 - i] = buffer[i];
     }
 
     return n;
 }
 
-unsigned int CSocketStream::Skip(unsigned int nSize)
+/////////////////////////////////////////////////////////////////////
+unsigned int SocketStream::Read8(unsigned __int64 *value)
 {
-    if (nSize > m_nInBufferSize - m_nInBufferIndex) { //over the number of bytes of data in the input buffer
-        nSize = m_nInBufferSize - m_nInBufferIndex;
+    unsigned int i, n;
+    unsigned char *p, buffer[sizeof(unsigned __int64)];
+
+    p = (unsigned char *)value;
+    n = Read(buffer, sizeof(unsigned __int64));
+
+    for (i = 0; i < n; i++) { //reverse byte order
+        p[sizeof(unsigned __int64)-1 - i] = buffer[i];
     }
 
-    m_nInBufferIndex += nSize;
-
-    return nSize;
+    return n;
 }
 
-unsigned int CSocketStream::GetSize(void)
+/////////////////////////////////////////////////////////////////////
+unsigned int SocketStream::Skip(unsigned int size)
 {
-    return m_nInBufferSize - m_nInBufferIndex;  //number of bytes of rest data in the input buffer
-}
-
-void CSocketStream::Write(void *pData, unsigned int nSize)
-{
-    if (m_nOutBufferIndex + nSize > MAXDATA) { //over the size of output buffer
-        nSize = MAXDATA - m_nOutBufferIndex;
+    if (size > m_inBufferSize - m_inBufferIndex) //over the number of bytes of data in the input buffer
+    {
+        size = m_inBufferSize - m_inBufferIndex;
     }
 
-    memcpy(m_pOutBuffer + m_nOutBufferIndex, pData, nSize);
-    m_nOutBufferIndex += nSize;
+    m_inBufferIndex += size;
 
-    if (m_nOutBufferIndex > m_nOutBufferSize) {
-        m_nOutBufferSize = m_nOutBufferIndex;
+    return size;
+}
+
+/////////////////////////////////////////////////////////////////////
+unsigned int SocketStream::GetSize() const noexcept
+{
+    return m_inBufferSize - m_inBufferIndex;  //number of bytes of rest data in the input buffer
+}
+
+/////////////////////////////////////////////////////////////////////
+void SocketStream::Write(void *data, unsigned int size)
+{
+    if (m_outBufferIndex + size > MAXDATA) //over the size of output buffer
+    {
+        size = MAXDATA - m_outBufferIndex;
+    }
+
+    memcpy(m_outBuffer + m_outBufferIndex, data, size);
+    m_outBufferIndex += size;
+
+    if (m_outBufferIndex > m_outBufferSize)
+    {
+        m_outBufferSize = m_outBufferIndex;
     }
 
 }
 
-void CSocketStream::Write(unsigned long nValue)
+/////////////////////////////////////////////////////////////////////
+void SocketStream::Write(unsigned long value)
 {
     int i;
-    unsigned char *p, pBuffer[sizeof(unsigned long)];
+    unsigned char *p, buffer[sizeof(unsigned long)];
 
-    p = (unsigned char *)&nValue;
+    p = (unsigned char *)&value;
 
-    for (i = sizeof(unsigned long)-1; i >= 0; i--) { //reverse byte order
-        pBuffer[i] = p[sizeof(unsigned long)-1 - i];
+    for (i = sizeof(unsigned long)-1; i >= 0; i--) //reverse byte order
+    {
+        buffer[i] = p[sizeof(unsigned long)-1 - i];
     }
 
-    Write(pBuffer, sizeof(unsigned long));
+    Write(buffer, sizeof(unsigned long));
 }
 
-void CSocketStream::Write8(unsigned __int64 nValue)
+/////////////////////////////////////////////////////////////////////
+void SocketStream::Write8(unsigned __int64 value)
 {
     int i;
-    unsigned char *p, pBuffer[sizeof(unsigned __int64)];
+    unsigned char *p, buffer[sizeof(unsigned __int64)];
 
-    p = (unsigned char *)&nValue;
+    p = (unsigned char *)&value;
 
-    for (i = sizeof(unsigned __int64)-1; i >= 0; i--) { //reverse byte order
-        pBuffer[i] = p[sizeof(unsigned __int64)-1 - i];
+    for (i = sizeof(unsigned __int64)-1; i >= 0; i--) //reverse byte order
+    {
+        buffer[i] = p[sizeof(unsigned __int64)-1 - i];
     }
 
-    Write(pBuffer, sizeof(unsigned __int64));
+    Write(buffer, sizeof(unsigned __int64));
 }
 
-void CSocketStream::Seek(int nOffset, int nFrom)
+/////////////////////////////////////////////////////////////////////
+void SocketStream::Seek(int offset, int from)
 {
-    if (nFrom == SEEK_SET) {
-        m_nOutBufferIndex = nOffset;
-    } else if (nFrom == SEEK_CUR) {
-        m_nOutBufferIndex += nOffset;
-    } else if (nFrom == SEEK_END) {
-        m_nOutBufferIndex = m_nOutBufferSize + nOffset;
+    if (from == SEEK_SET)
+    {
+        m_outBufferIndex = offset;
+    }
+    else if (from == SEEK_CUR)
+    {
+        m_outBufferIndex += offset;
+    }
+    else if (from == SEEK_END)
+    {
+        m_outBufferIndex = m_outBufferSize + offset;
     }
 }
 
-int CSocketStream::GetPosition(void)
+/////////////////////////////////////////////////////////////////////
+int SocketStream::GetPosition() const noexcept
 {
-    return m_nOutBufferIndex;
+    return m_outBufferIndex;
 }
 
-void CSocketStream::Reset(void)
+/////////////////////////////////////////////////////////////////////
+void SocketStream::Reset()
 {
-    m_nOutBufferIndex = m_nOutBufferSize = 0;  //clear output buffer
+    m_outBufferIndex = m_outBufferSize = 0;  //clear output buffer
 }

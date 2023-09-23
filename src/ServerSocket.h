@@ -1,28 +1,35 @@
-#ifndef _SERVERSOCKET_H_
-#define _SERVERSOCKET_H_
+/////////////////////////////////////////////////////////////////////
+/// file: ServerSocket.h
+///
+/// summary: Listening socket
+/////////////////////////////////////////////////////////////////////
+
+#ifndef ICENFSD_SERVERSOCKET_H
+#define ICENFSD_SERVERSOCKET_H
 
 #include "SocketListener.h"
 #include "Socket.h"
 #include <winsock.h>
 
-class CServerSocket
+class ServerSocket
 {
-    public:
-    CServerSocket();
-    ~CServerSocket();
-    void SetListener(ISocketListener *pListener);
-    bool Open(int nPort, int nMaxNum);
-    void Close(void);
-    int GetPort(void);
-    void Run(void);
+public:
+    ServerSocket();
+    ~ServerSocket();
 
-    private:
-    int m_nPort, m_nMaxNum;
-    SOCKET m_ServerSocket;
-    bool m_bClosed;
-    ISocketListener *m_pListener;
-    HANDLE m_hThread;
-    Socket **m_pSockets;
+    void SetListener(ISocketListener *listener);
+    bool Open(int port, int maxNum);
+    void Close();
+    int GetPort() const noexcept;
+    void Run();
+
+private:
+    int m_port, m_maxNum;
+    bool m_closed;
+    SOCKET m_serverSocket;
+    HANDLE m_thread;
+    ISocketListener *m_listener;
+    Socket **m_sockets;
 };
 
-#endif
+#endif // ICENFSD_SERVERSOCKET_H

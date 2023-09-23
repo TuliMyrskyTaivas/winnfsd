@@ -17,11 +17,11 @@ class CDatagramSocket
     void Run(void);
 
     private:
-    int m_nPort;
+    int m_port;
     SOCKET m_Socket;
     Socket *m_pSocket;
-    bool m_bClosed;
-    ISocketListener *m_pListener;
+    bool m_closed;
+    ISocketListener *m_listener;
 };
 
 #endif

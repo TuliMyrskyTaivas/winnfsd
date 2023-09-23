@@ -1,128 +1,148 @@
+/////////////////////////////////////////////////////////////////////
+/// file: ServerSocket.h
+///
+/// summary: Listening socket
+/////////////////////////////////////////////////////////////////////
+
 #include "ServerSocket.h"
 #include <process.h>
-#include <assert.h>
+#include <cassert>
 
-static unsigned int __stdcall ThreadProc(void *lpParameter)
+/////////////////////////////////////////////////////////////////////
+static unsigned int __stdcall ThreadProc(void *parameter)
 {
-    ((CServerSocket *)lpParameter)->Run();
-
+    reinterpret_cast<ServerSocket*>(parameter)->Run();
     return 0;
 }
 
-CServerSocket::CServerSocket()
-{
-    m_nPort = 0;
-    m_bClosed = true;
-    m_pListener = NULL;
-    m_pSockets = NULL;
-}
+/////////////////////////////////////////////////////////////////////
+ServerSocket::ServerSocket()
+    : m_port(0)
+    , m_maxNum(0)
+    , m_closed(true)
+    , m_serverSocket(INVALID_SOCKET)
+    , m_thread(INVALID_HANDLE_VALUE)
+    , m_listener(nullptr)
+    , m_sockets(nullptr)
+{}
 
-CServerSocket::~CServerSocket()
+/////////////////////////////////////////////////////////////////////
+ServerSocket::~ServerSocket()
 {
     Close();
 }
 
-void CServerSocket::SetListener(ISocketListener *pListener)
+/////////////////////////////////////////////////////////////////////
+void ServerSocket::SetListener(ISocketListener *listener)
 {
-    m_pListener = pListener;
+    m_listener = listener;
 }
 
-bool CServerSocket::Open(int nPort, int nMaxNum)
+/////////////////////////////////////////////////////////////////////
+bool ServerSocket::Open(int port, int maxNum)
 {
-    struct sockaddr_in localAddr;
-    int i;
-    unsigned int id;
-
     Close();
 
-    m_nPort = nPort;
-    m_nMaxNum = nMaxNum;  //max number of concurrent clients
-    m_ServerSocket = socket(AF_INET, SOCK_STREAM, 0);
+    m_port = port;
+    m_maxNum = maxNum;  //max number of concurrent clients
+    m_serverSocket = socket(AF_INET, SOCK_STREAM, 0);
 
-    if (m_ServerSocket == INVALID_SOCKET) {
+    if (m_serverSocket == INVALID_SOCKET)
+    {
         return false;
     }
 
+    struct sockaddr_in localAddr;
     memset(&localAddr, 0, sizeof(localAddr));
     localAddr.sin_family = AF_INET;
-    localAddr.sin_port = htons(static_cast<u_short>(m_nPort));
+    localAddr.sin_port = htons(static_cast<u_short>(m_port));
 	localAddr.sin_addr.s_addr = inet_addr(g_sInAddr);
-	if (localAddr.sin_addr.s_addr == INADDR_NONE) {
+	if (localAddr.sin_addr.s_addr == INADDR_NONE)
+    {
 		g_sInAddr = "0.0.0.0";
 		localAddr.sin_addr.s_addr = INADDR_ANY;
 	}
 
-    if (bind(m_ServerSocket, (struct sockaddr *)&localAddr, sizeof(localAddr)) == SOCKET_ERROR)	{
-        closesocket(m_ServerSocket);
-
+    if (bind(m_serverSocket, (struct sockaddr *)&localAddr, sizeof(localAddr)) == SOCKET_ERROR)
+    {
+        closesocket(m_serverSocket);
         return false;
     }
 
-    if (listen(m_ServerSocket, m_nMaxNum) == SOCKET_ERROR) {
-        closesocket(m_ServerSocket);
-
+    if (listen(m_serverSocket, m_maxNum) == SOCKET_ERROR)
+    {
+        closesocket(m_serverSocket);
         return false;
     }
 
-    m_pSockets = new Socket *[m_nMaxNum];
+    m_sockets = new Socket*[m_maxNum];
 
-    for (i = 0; i < m_nMaxNum; i++) {
-        m_pSockets[i] = new Socket(SOCK_STREAM);
+    for (int i = 0; i < m_maxNum; i++)
+    {
+        m_sockets[i] = new Socket(SOCK_STREAM);
     }
 
-    m_bClosed = false;
-    m_hThread = (HANDLE)_beginthreadex(NULL, 0, ThreadProc, this, 0, &id);  //begin thread
+    m_closed = false;
+    unsigned int id;
+    m_thread = (HANDLE)_beginthreadex(NULL, 0, ThreadProc, this, 0, &id);  //begin thread
 
     return true;
 }
 
-void CServerSocket::Close(void)
+/////////////////////////////////////////////////////////////////////
+void ServerSocket::Close(void)
 {
-    int i;
-
-    if (m_bClosed) {
+    if (m_closed)
+    {
         return;
     }
 
-    m_bClosed = true;
+    m_closed = true;
 
-    closesocket(m_ServerSocket);
+    closesocket(m_serverSocket);
 
-    if (m_hThread != NULL) {
-        WaitForSingleObject(m_hThread, INFINITE);
-        CloseHandle(m_hThread);
+    if (m_thread != nullptr)
+    {
+        WaitForSingleObject(m_thread, INFINITE);
+        CloseHandle(m_thread);
     }
 
-    if (m_pSockets != NULL) {
-        for (i = 0; i < m_nMaxNum; i++) {
-            delete m_pSockets[i];
+    if (m_sockets != nullptr)
+    {
+        for (int i = 0; i < m_maxNum; i++)
+        {
+            delete m_sockets[i];
         }
 
-        delete[] m_pSockets;
-        m_pSockets = NULL;
+        delete[] m_sockets;
+        m_sockets = nullptr;
     }
 }
 
-int CServerSocket::GetPort(void)
+/////////////////////////////////////////////////////////////////////
+int ServerSocket::GetPort() const noexcept
 {
-    return m_nPort;
+    return m_port;
 }
 
-void CServerSocket::Run(void)
+/////////////////////////////////////////////////////////////////////
+void ServerSocket::Run()
 {
-    int i, nSize;
     struct sockaddr_in remoteAddr;
-    SOCKET socket;
 
-    nSize = sizeof(remoteAddr);
+    int size = sizeof(remoteAddr);
 
-    while (!m_bClosed) {
-        socket = accept(m_ServerSocket, (struct sockaddr *)&remoteAddr, &nSize);  //accept connection
+    while (!m_closed)
+    {
+        SOCKET socket = accept(m_serverSocket, (struct sockaddr *)&remoteAddr, &size);  //accept connection
 
-        if (socket != INVALID_SOCKET) {
-            for (i = 0; i < m_nMaxNum; i++) {
-                if (!m_pSockets[i]->Active()) { //find an inactive CSocket
-                    m_pSockets[i]->Open(socket, m_pListener, &remoteAddr);  //receive input data
+        if (socket != INVALID_SOCKET)
+        {
+            for (int i = 0; i < m_maxNum; i++)
+            {
+                if (!m_sockets[i]->Active()) //find an inactive CSocket
+                {
+                    m_sockets[i]->Open(socket, m_listener, &remoteAddr);  //receive input data
                     break;
                 }
             }

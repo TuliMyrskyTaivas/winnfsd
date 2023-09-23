@@ -1,16 +1,20 @@
-#ifndef _INPUTSTREAM_H_
-#define _INPUTSTREAM_H_
+/////////////////////////////////////////////////////////////////////
+/// file: InputStream.h
+///
+/// summary: abstraction of the input stream
+/////////////////////////////////////////////////////////////////////
 
-#include <stdio.h>
+#ifndef ICENFSD_INPUTSTREAM_H
+#define ICENFSD_INPUTSTREAM_H
 
 class IInputStream
 {
-    public:
-    virtual unsigned int Read(void *pData, unsigned int nSize) = 0;
-    virtual unsigned int Read(unsigned long *pnValue) = 0;
-    virtual unsigned int Read8(unsigned __int64 *pnValue) = 0;
-    virtual unsigned int Skip(unsigned int nSize) = 0;
-    virtual unsigned int GetSize(void) = 0;
+public:
+    virtual unsigned int Read(void *data, unsigned int size) = 0;
+    virtual unsigned int Read(unsigned long *value) = 0;
+    virtual unsigned int Read8(unsigned __int64 *value) = 0;
+    virtual unsigned int Skip(unsigned int size) = 0;
+    virtual unsigned int GetSize() const noexcept = 0;
 };
 
-#endif
+#endif // ICENFSD_INPUTSTREAM_H

@@ -35,7 +35,7 @@ public:
     SOCKET m_socket;
     struct sockaddr_in m_remoteAddr;
     ISocketListener *m_listener;
-    CSocketStream m_socketStream;
+    SocketStream m_socketStream;
     bool m_active;
     HANDLE m_thread;
 };

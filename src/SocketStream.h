@@ -1,34 +1,45 @@
-#ifndef _SOCKETSTREAM_H_
-#define _SOCKETSTREAM_H_
+/////////////////////////////////////////////////////////////////////
+/// file: SocketStream.h
+///
+/// summary: stream I/O for the socket
+/////////////////////////////////////////////////////////////////////
+
+#ifndef ICENFSD_SOCKETSTREAM_H
+#define ICENFSD_SOCKETSTREAM_H
 
 #include "InputStream.h"
 #include "OutputStream.h"
 
-class CSocketStream : public IInputStream, public IOutputStream
+class SocketStream : public IInputStream, public IOutputStream
 {
-    public:
-    CSocketStream();
-    virtual ~CSocketStream();
-    unsigned char *GetInput(void);
-    void SetInputSize(unsigned int nSize);
-    unsigned char *GetOutput(void);
-    unsigned int GetOutputSize(void);
-    unsigned int GetBufferSize(void);
-    unsigned int Read(void *pData, unsigned int nSize);
-    unsigned int Read(unsigned long *pnValue);
-    unsigned int Read8(unsigned __int64 *pnValue);
-    unsigned int Skip(unsigned int nSize);
-    unsigned int GetSize(void);
-    void Write(void *pData, unsigned int nSize);
-    void Write(unsigned long nValue);
-    void Write8(unsigned __int64 nValue);
-    void Seek(int nOffset, int nFrom);
-    int GetPosition(void);
-    void Reset(void);
+public:
+    SocketStream();
+    virtual ~SocketStream();
 
-    private:
-    unsigned char *m_pInBuffer, *m_pOutBuffer;
-    unsigned int m_nInBufferIndex, m_nInBufferSize, m_nOutBufferIndex, m_nOutBufferSize;
+    unsigned char* GetInput() noexcept;
+    void SetInputSize(unsigned int size);
+    unsigned char* GetOutput() noexcept;
+    unsigned int GetOutputSize() const noexcept;
+    unsigned int GetBufferSize() const noexcept;
+    void Reset();
+
+    // IInputStream implementation
+    unsigned int Read(void *data, unsigned int size) override;
+    unsigned int Read(unsigned long *value) override;
+    unsigned int Read8(unsigned __int64 *value) override;
+    unsigned int Skip(unsigned int size) override;
+    unsigned int GetSize() const noexcept override;
+
+    // IOutputStream implementation
+    void Write(void *data, unsigned int size) override;
+    void Write(unsigned long value) override;
+    void Write8(unsigned __int64 value) override;
+    void Seek(int offset, int from) override;
+    int GetPosition() const noexcept override;
+    
+private:
+    unsigned char *m_inBuffer, *m_outBuffer;
+    unsigned int m_inBufferIndex, m_inBufferSize, m_outBufferIndex, m_outBufferSize;
 };
 
-#endif
+#endif // ICENFSD_SOCKETSTREAM_H
