@@ -15,7 +15,7 @@ class CRPCServer : public ISocketListener
     virtual ~CRPCServer();
     void Set(int nProg, CRPCProg *pRPCProg);
     void SetLogOn(bool bLogOn);
-    void SocketReceived(CSocket *pSocket);
+    void SocketReceived(Socket *pSocket);
 
     protected:
     CRPCProg *m_pProgTable[PROG_NUM];

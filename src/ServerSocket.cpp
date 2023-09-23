@@ -45,7 +45,7 @@ bool CServerSocket::Open(int nPort, int nMaxNum)
 
     memset(&localAddr, 0, sizeof(localAddr));
     localAddr.sin_family = AF_INET;
-    localAddr.sin_port = htons(m_nPort);
+    localAddr.sin_port = htons(static_cast<u_short>(m_nPort));
 	localAddr.sin_addr.s_addr = inet_addr(g_sInAddr);
 	if (localAddr.sin_addr.s_addr == INADDR_NONE) {
 		g_sInAddr = "0.0.0.0";
@@ -64,10 +64,10 @@ bool CServerSocket::Open(int nPort, int nMaxNum)
         return false;
     }
 
-    m_pSockets = new CSocket *[m_nMaxNum];
+    m_pSockets = new Socket *[m_nMaxNum];
 
     for (i = 0; i < m_nMaxNum; i++) {
-        m_pSockets[i] = new CSocket(SOCK_STREAM);
+        m_pSockets[i] = new Socket(SOCK_STREAM);
     }
 
     m_bClosed = false;

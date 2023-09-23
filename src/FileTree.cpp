@@ -11,13 +11,13 @@ static tree<FILE_ITEM> filesTree;
 static tree<FILE_ITEM>::iterator topNode;
 
 std::string _first_dirname(std::string path) {
-	auto wcs = _conv_from_932(path.c_str());
+	auto wcs = ConvFromCp932(path.c_str());
 	if (wcs == NULL) {
 		return path.substr(0, path.find('\\'));
 	}
 	auto wpath = std::basic_string<wchar_t>(wcs);
 	delete wcs;
-	auto dest = _conv_to_932(wpath.substr(0, wpath.find(L'\\')).c_str());
+	auto dest = ConvToCp932(wpath.substr(0, wpath.find(L'\\')).c_str());
 	if (dest == NULL) {
 		return path.substr(0, path.find('\\'));
 	}
@@ -27,7 +27,7 @@ std::string _first_dirname(std::string path) {
 }
 
 std::string _dirname_932(std::string path) {
-	auto wcs = _conv_from_932(path.c_str());
+	auto wcs = ConvFromCp932(path.c_str());
 	auto result = path.find('\\') != std::string::npos ? path.substr(0, path.find_last_of('\\')) : std::string("");
 	if (wcs == NULL) {
 		return result;
@@ -37,7 +37,7 @@ std::string _dirname_932(std::string path) {
 	if (wpath.find(L'\\') == std::basic_string<wchar_t>::npos) {
 		return result;
 	}
-	auto dest = _conv_to_932(wpath.substr(0, wpath.find_last_of(L'\\')).c_str());
+	auto dest = ConvToCp932(wpath.substr(0, wpath.find_last_of(L'\\')).c_str());
 	if (dest == NULL) {
 		return result;
 	}
@@ -47,7 +47,7 @@ std::string _dirname_932(std::string path) {
 }
 
 std::string _following_path(std::string path) {
-	auto wcs = _conv_from_932(path.c_str());
+	auto wcs = ConvFromCp932(path.c_str());
 	if (wcs == NULL) {
 		return path.find('\\') != std::string::npos ? path.substr(path.find('\\') + 1) : std::string("");
 	}
@@ -56,7 +56,7 @@ std::string _following_path(std::string path) {
 	if (wpath.find(L'\\') == std::basic_string<wchar_t>::npos) {
 		return std::string("");
 	}
-	auto dest = _conv_to_932(wpath.substr(wpath.find(L'\\') + 1).c_str());
+	auto dest = ConvToCp932(wpath.substr(wpath.find(L'\\') + 1).c_str());
 	if (dest == NULL) {
 		return path.find('\\') != std::string::npos ? path.substr(path.find('\\') + 1) : std::string("");
 	}
@@ -66,13 +66,13 @@ std::string _following_path(std::string path) {
 }
 
 std::string _basename_932(std::string path) {
-	auto wcs = _conv_from_932(path.c_str());
+	auto wcs = ConvFromCp932(path.c_str());
 	if (wcs == NULL) {
 		return path.substr(path.find_last_of('\\') + 1);
 	}
 	auto wpath = std::basic_string<wchar_t>(wcs);
 	delete wcs;
-	auto dest = _conv_to_932(wpath.substr(wpath.find_last_of(L'\\') + 1).c_str());
+	auto dest = ConvToCp932(wpath.substr(wpath.find_last_of(L'\\') + 1).c_str());
 	if (dest == NULL) {
 		return path.substr(path.find_last_of('\\') + 1);
 	}
@@ -91,7 +91,7 @@ FILE_ITEM CFileTree::AddItem(const char *absolutePath, unsigned char* handle)
 	if (filesTree.empty()) {
 		item.path = new char[strlen(absolutePath) + 1];
 		strcpy_s(item.path, (strlen(absolutePath) + 1), absolutePath);
-		item.nPathLen = strlen(item.path);
+		item.nPathLen = static_cast<int>(strlen(item.path));
 
 		filesTree.set_head(item);
 		topNode = filesTree.begin();
@@ -113,7 +113,7 @@ FILE_ITEM CFileTree::AddItem(const char *absolutePath, unsigned char* handle)
 			//printf("No parent node found for %s. Adding new sibbling.", absolutePath);
 			item.path = new char[strlen(absolutePath) + 1];
 			strcpy_s(item.path, (strlen(absolutePath) + 1), absolutePath);
-			item.nPathLen = strlen(item.path);
+			item.nPathLen = static_cast<int>(strlen(item.path));
 			
 			filesTree.insert(tree<FILE_ITEM>::iterator_base(topNode), item);
 			topNode = filesTree.begin();
@@ -230,7 +230,6 @@ tree_node_<FILE_ITEM>* CFileTree::findNodeWithPathFromNode(const char *path, tre
 
 	std::string currentPath = _first_dirname(path);
 
-	size_t position = currentPath.size();
 	std::string followingPath = _following_path(path);
 	currentLevel = followingPath.empty();
 

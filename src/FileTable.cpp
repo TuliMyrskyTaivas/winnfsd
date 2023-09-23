@@ -99,7 +99,7 @@ bool CFileTable::GetPathByHandle(unsigned char *handle, std::string &path)
 	}
 }
 
-tree_node_<FILE_ITEM>* CFileTable::FindItemByPath(const char *path)
+tree_node_<FILE_ITEM>* CFileTable::FindItemByPath(const char* /*path*/ )
 {
 	tree_node_<FILE_ITEM>* node= NULL;/*
     CACHE_LIST *pCurr;
@@ -164,7 +164,7 @@ tree_node_<FILE_ITEM>* CFileTable::AddItem(const char *path)
 
 	item.path = new char[strlen(path) + 1];
 	strcpy_s(item.path, (strlen(path) + 1), path);  //path
-	item.nPathLen = strlen(item.path);  //path length
+	item.nPathLen = static_cast<int>(strlen(item.path));  //path length
 	item.handle = new unsigned char[NFS3_FHSIZE];
 	memset(item.handle, 0, NFS3_FHSIZE * sizeof(unsigned char));
 	*(unsigned int *)item.handle = m_nTableSize;  //let its handle equal the index
@@ -317,9 +317,9 @@ bool CFileTable::RemoveItem(const char *path) {
 		}
 		// Remove from table end
 
-        std::string path;
-        g_FileTree.GetNodeFullPath(foundDeletedItem, path);
-		g_FileTree.RemoveItem(path.c_str());
+        std::string fullPath;
+        g_FileTree.GetNodeFullPath(foundDeletedItem, fullPath);
+		g_FileTree.RemoveItem(fullPath.c_str());
 		return true;
 	}
 	else {
@@ -347,10 +347,9 @@ void CFileTable::RenameFile(const char *pathFrom, const char* pathTo)
 
 bool FileExists(const char *path)
 {
-    int handle;
     struct _finddata_t fileinfo;
 
-    handle = _findfirst(path, &fileinfo);
+    auto handle = _findfirst(path, &fileinfo);
     _findclose(handle);
 
     return handle == -1 ? false : strcmp(fileinfo.name, strrchr(path, '\\') + 1) == 0;  //filename must match case

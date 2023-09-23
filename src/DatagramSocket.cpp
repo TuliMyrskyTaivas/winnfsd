@@ -39,7 +39,7 @@ bool CDatagramSocket::Open(int nPort)
 
     memset(&localAddr, 0, sizeof(localAddr));
     localAddr.sin_family = AF_INET;
-    localAddr.sin_port = htons(m_nPort);
+    localAddr.sin_port = htons(static_cast<u_short>(m_nPort));
 	localAddr.sin_addr.s_addr = inet_addr(g_sInAddr);
 	if (localAddr.sin_addr.s_addr == INADDR_NONE) {
 		g_sInAddr = "0.0.0.0";
@@ -52,7 +52,7 @@ bool CDatagramSocket::Open(int nPort)
     }
 
     m_bClosed = false;
-    m_pSocket = new CSocket(SOCK_DGRAM);
+    m_pSocket = new Socket(SOCK_DGRAM);
     m_pSocket->Open(m_Socket, m_pListener);  //wait for receiving data
     return true;
 }

@@ -173,7 +173,7 @@ void filename3::SetSize(uint32 len)
 
 void filename3::Set(char *str)
 {
-    SetSize(strlen(str));
+    SetSize(static_cast<uint32>(strlen(str)));
     strcpy_s(name, (strlen(str) + 1), str);
 }
 
@@ -195,7 +195,7 @@ void nfspath3::SetSize(uint32 len)
 
 void nfspath3::Set(char *str)
 {
-    SetSize(strlen(str));
+    SetSize(static_cast<uint32>(strlen(str)));
     strcpy_s(path, (strlen(str) + 1), str);
 }
 
@@ -558,7 +558,6 @@ nfsstat3 CNFS3Prog::ProcedureREADLINK(void)
 {
     PrintLog("READLINK");
     std::string path;
-    char *pMBBuffer = 0;
 
     post_op_attr symlink_attributes;
     nfspath3 data = nfspath3();
@@ -600,7 +599,10 @@ nfsstat3 CNFS3Prog::ProcedureREADLINK(void)
                         szPrintName[plen] = 0;
                         std::wstring wStringTemp(szPrintName);
                         delete[] szPrintName;
+#pragma warning(push)
+#pragma warning(disable:4244)
                         std::string cPrintName(wStringTemp.begin(), wStringTemp.end());
+#pragma warning(pop)
                         finalSymlinkPath.assign(cPrintName);
                         // TODO: Revisit with cleaner solution
                         if (!PathIsRelative(cPrintName.c_str()))
@@ -690,7 +692,7 @@ nfsstat3 CNFS3Prog::ProcedureREAD(void)
 
         if (pFile != NULL) {
             _fseeki64(pFile, offset, SEEK_SET) ;
-            count = fread(data.contents, sizeof(char), count, pFile);
+            count = static_cast<count3>(fread(data.contents, sizeof(char), count, pFile));
             eof = fgetc(pFile) == EOF;
             fclose(pFile);
         } else {
@@ -762,7 +764,7 @@ nfsstat3 CNFS3Prog::ProcedureWRITE(void)
 
             if (pFile != NULL) {
                 _fseeki64(pFile, offset, SEEK_SET);
-                count = fwrite(data.contents, sizeof(char), data.length, pFile);
+                count = static_cast<count3>(fwrite(data.contents, sizeof(char), data.length, pFile));
             } else {
                 char buffer[BUFFER_SIZE];
                 errno_t errorNumber = errno;
@@ -786,7 +788,7 @@ nfsstat3 CNFS3Prog::ProcedureWRITE(void)
 
             if (pFile != NULL) {
                 _fseeki64(pFile, offset, SEEK_SET) ;
-                count = fwrite(data.contents, sizeof(char), data.length, pFile);
+                count = static_cast<count3>(fwrite(data.contents, sizeof(char), data.length, pFile));
                 fclose(pFile);
             } else {
                 char buffer[BUFFER_SIZE];
@@ -1216,7 +1218,8 @@ nfsstat3 CNFS3Prog::ProcedureREADDIR(void)
     bool bFollows;
     nfsstat3 stat;
     char filePath[MAXPATHLEN];
-    int handle, nFound;
+    int nFound;
+    intptr_t handle;
     struct _finddata_t fileinfo;
     unsigned int i, j;
 
@@ -1299,7 +1302,8 @@ nfsstat3 CNFS3Prog::ProcedureREADDIRPLUS(void)
     bool eof;
     nfsstat3 stat;
     char filePath[MAXPATHLEN];
-    int handle, nFound;
+    int nFound;
+    intptr_t handle;
     struct _finddata_t fileinfo;
     unsigned int i, j;
     bool bFollows;

@@ -497,20 +497,26 @@ tree<T, tree_node_allocator>::tree(const iterator_base& other)
 template <class T, class tree_node_allocator>
 tree<T, tree_node_allocator>::~tree()
 	{
+#pragma warning(push)
+#pragma warning(disable:4996)
 	clear();
 	alloc_.destroy(head);
 	alloc_.destroy(feet);
 	alloc_.deallocate(head,1);
 	alloc_.deallocate(feet,1);
+#pragma warning(pop)
 	}
 
 template <class T, class tree_node_allocator>
 void tree<T, tree_node_allocator>::head_initialise_() 
-   { 
+   {
+#pragma warning(push)
+#pragma warning(disable:4996)
    head = alloc_.allocate(1,0); // MSVC does not have default second argument 
 	feet = alloc_.allocate(1,0);
 	alloc_.construct(head, tree_node_<T>());
 	alloc_.construct(feet, tree_node_<T>());
+#pragma warning(pop)
 
    head->parent=0;
    head->first_child=0;
@@ -583,8 +589,11 @@ void tree<T, tree_node_allocator>::erase_children(const iterator_base& it)
 		cur=cur->next_sibling;
 		erase_children(pre_order_iterator(prev));
 //		kp::destructor(&prev->data);
+#pragma warning(push)
+#pragma warning(disable:4996)
 		alloc_.destroy(prev);
 		alloc_.deallocate(prev,1);
+#pragma warning(pop)
 		}
 	it.node->first_child=0;
 	it.node->last_child=0;
@@ -615,8 +624,11 @@ iter tree<T, tree_node_allocator>::erase(iter it)
 		}
 
 //	kp::destructor(&cur->data);
-	alloc_.destroy(cur);
+#pragma warning(push)
+#pragma warning(disable:4996)
+   alloc_.destroy(cur);
    alloc_.deallocate(cur,1);
+#pragma warning(pop)
 	return ret;
 	}
 
@@ -899,8 +911,11 @@ iter tree<T, tree_node_allocator>::append_child(iter position, const T& x)
 	assert(position.node!=feet);
 	assert(position.node);
 
+#pragma warning(push)
+#pragma warning(disable:4996)
 	tree_node* tmp = alloc_.allocate(1,0);
 	alloc_.construct(tmp, x);
+#pragma warning(pop)
 //	kp::constructor(&tmp->data, x);
 	tmp->first_child=0;
 	tmp->last_child=0;
@@ -1018,8 +1033,11 @@ iter tree<T, tree_node_allocator>::insert(iter position, const T& x)
 		position.node=feet; // Backward compatibility: when calling insert on a null node,
 		                    // insert before the feet.
 		}
+#pragma warning(push)
+#pragma warning(disable:4996)
 	tree_node* tmp = alloc_.allocate(1,0);
 	alloc_.construct(tmp, x);
+#pragma warning(pop)
 //	kp::constructor(&tmp->data, x);
 	tmp->first_child=0;
 	tmp->last_child=0;
@@ -1739,8 +1757,10 @@ unsigned int tree<T, tree_node_allocator>::number_of_children(const iterator_bas
 //		  ++ret;
 //		  pos=pos->next_sibling;
 //		  }
-	while((pos=pos->next_sibling))
+
+	while((pos=pos->next_sibling) != nullptr)
 		++ret;
+
 	return ret;
 	}
 

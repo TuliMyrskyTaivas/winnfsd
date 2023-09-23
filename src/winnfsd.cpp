@@ -122,10 +122,9 @@ static void printConfirmQuit(void)
 
 static void mountPaths(std::vector<std::vector<std::string>> paths)
 {
-	int i;
-	int numberOfElements = paths.size();
+	const size_t numberOfElements = paths.size();
 
-	for (i = 0; i < numberOfElements; i++) {
+	for (size_t i = 0; i < numberOfElements; i++) {
 		char *pPath = (char*)paths[i][0].c_str();
 		char *pPathAlias = (char*)paths[i][1].c_str();
 		g_MountProg.Export(pPath, pPathAlias);  //export path for mount
@@ -289,7 +288,7 @@ int main(int argc, char *argv[])
 
             break;
         } else if (i == argc - 1) {
-            char *pPath = argv[argc - 1];  //path is the last parameter
+            pPath = argv[argc - 1];  //path is the last parameter
 
             if (pPath != NULL) {
                 char curPathAlias[MAXPATHLEN];

@@ -1,5 +1,11 @@
-#ifndef _SOCKET_H_
-#define _SOCKET_H_
+/////////////////////////////////////////////////////////////////////
+/// file: Socket.h
+///
+/// summary: base class for the network socket
+/////////////////////////////////////////////////////////////////////
+
+#ifndef ICENFSD_SOCKET_H
+#define ICENFSD_SOCKET_H
 
 #include "SocketListener.h"
 #include "SocketStream.h"
@@ -7,30 +13,31 @@
 
 extern char *g_sInAddr;
 
-class CSocket
+class Socket
 {
-    public:
-    CSocket(int nType);
-    virtual ~CSocket();
-    int GetType(void);
-    void Open(SOCKET socket, ISocketListener *pListener, struct sockaddr_in *pRemoteAddr = NULL);
-    void Close(void);
-    void Send(void);
-    bool Active(void);
-    char *GetRemoteAddress(void);
-    int GetRemotePort(void);
-    IInputStream *GetInputStream(void);
-    IOutputStream *GetOutputStream(void);
-    void Run(void);
+public:
+    Socket(int type);
+    virtual ~Socket();
 
-    private:
-    int m_nType;
-    SOCKET m_Socket;
-    struct sockaddr_in m_RemoteAddr;
-    ISocketListener *m_pListener;
-    CSocketStream m_SocketStream;
-    bool m_bActive;
-    HANDLE m_hThread;
+    int GetType() const noexcept;
+    void Open(SOCKET socket, ISocketListener* listener, struct sockaddr_in* remoteAddr = nullptr);
+    void Close();
+    void Send();
+    bool Active() const noexcept;
+    char* GetRemoteAddress() const noexcept;
+    int GetRemotePort() const noexcept;
+    IInputStream* GetInputStream() noexcept;
+    IOutputStream* GetOutputStream() noexcept;
+    void Run();
+
+ private:
+    int m_type;
+    SOCKET m_socket;
+    struct sockaddr_in m_remoteAddr;
+    ISocketListener *m_listener;
+    CSocketStream m_socketStream;
+    bool m_active;
+    HANDLE m_thread;
 };
 
-#endif
+#endif // ICENFSD_SOCKET_H

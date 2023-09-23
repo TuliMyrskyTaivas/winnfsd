@@ -75,7 +75,7 @@ void CRPCServer::SetLogOn(bool bLogOn)
     }  
 }
 
-void CRPCServer::SocketReceived(CSocket *pSocket)
+void CRPCServer::SocketReceived(Socket *pSocket)
 {
     IInputStream *pInStream;
     int nResult;
@@ -98,11 +98,9 @@ void CRPCServer::SocketReceived(CSocket *pSocket)
 int CRPCServer::Process(int nType, IInputStream *pInStream, IOutputStream *pOutStream, char *pRemoteAddr)
 {
     RPC_HEADER header;
-    int nPos, nSize;
+    int nPos = 0, nSize = 0;
     ProcessParam param;
-    int nResult;
-
-    nResult = PRC_OK;
+    int nResult = PRC_OK;
 
     if (nType == SOCK_STREAM) {
         pInStream->Read(&header.header);

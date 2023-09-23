@@ -1,12 +1,12 @@
 #ifndef _SOCKETLISTENER_H_
 #define _SOCKETLISTENER_H_
 
-class CSocket;
+class Socket;
 
 class ISocketListener
 {
     public:
-    virtual void SocketReceived(CSocket *pSocket) = 0;
+    virtual void SocketReceived(Socket *pSocket) = 0;
 };
 
 #endif

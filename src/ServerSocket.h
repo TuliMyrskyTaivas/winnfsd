@@ -22,7 +22,7 @@ class CServerSocket
     bool m_bClosed;
     ISocketListener *m_pListener;
     HANDLE m_hThread;
-    CSocket **m_pSockets;
+    Socket **m_pSockets;
 };
 
 #endif
