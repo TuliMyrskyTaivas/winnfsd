@@ -51,7 +51,6 @@ class MountProg : public RPCProg
 
 private:
     ProcessParam *m_param;
-    int m_result;
 
 	bool GetPath(char **returnPath);
     char *GetPath(int &pathNumber);

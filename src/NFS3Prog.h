@@ -1,7 +1,14 @@
-#ifndef _NFS3PROG_H_
-#define _NFS3PROG_H_
+/////////////////////////////////////////////////////////////////////
+/// file: NFS3Prog.h
+///
+/// summary: NFSv3 RPC
+/////////////////////////////////////////////////////////////////////
+
+#ifndef ICENFSD_NFS3PROG_H
+#define ICENFSD_NFS3PROG_H
 
 #include "RPCProg.h"
+
 #include <string>
 #include <windows.h>
 #include <unordered_map>
@@ -26,278 +33,96 @@ typedef uint64 cookieverf3;
 typedef uint64 createverf3;
 typedef uint64 writeverf3;
 
-class opaque
-{
-    public:
-    uint32 length;
-    unsigned char *contents;
+struct CreateHow3;
+struct DirOpArgs3;
+struct FAttr3;
+struct NFSTime3;
+struct NFSv3FileHandle;
+struct Opaque;
+struct PostOpAttr;
+struct PostOpFH3;
+struct PreOpAttr;
+struct SAttr3;
+struct SAttrGuard3;
+struct SpecData3;
+struct SymlinkData3;
+struct WccAttr;
+struct WccData;
 
-    opaque();
-    opaque(uint32 len);
-    virtual ~opaque();
-    virtual void SetSize(uint32 len);
+class NFS3Prog : public RPCProg
+{
+public:
+	NFS3Prog(unsigned int uid, unsigned int gid, bool enableLog);
+	~NFS3Prog() = default;
+
+	int Process(IInputStream* inStream, IOutputStream* outStream, ProcessParam* param);
+
+protected:
+	unsigned long m_uid, m_gid;
+	IInputStream* m_inStream;
+	IOutputStream* m_outStream;
+	ProcessParam* m_param;
+
+	nfsstat3 ProcedureNULL();
+	nfsstat3 ProcedureGETATTR();
+	nfsstat3 ProcedureSETATTR();
+	nfsstat3 ProcedureLOOKUP();
+	nfsstat3 ProcedureACCESS();
+	nfsstat3 ProcedureREADLINK();
+	nfsstat3 ProcedureREAD();
+	nfsstat3 ProcedureWRITE();
+	nfsstat3 ProcedureCREATE();
+	nfsstat3 ProcedureMKDIR();
+	nfsstat3 ProcedureSYMLINK();
+	nfsstat3 ProcedureMKNOD();
+	nfsstat3 ProcedureREMOVE();
+	nfsstat3 ProcedureRMDIR();
+	nfsstat3 ProcedureRENAME();
+	nfsstat3 ProcedureLINK();
+	nfsstat3 ProcedureREADDIR();
+	nfsstat3 ProcedureREADDIRPLUS();
+	nfsstat3 ProcedureFSSTAT();
+	nfsstat3 ProcedureFSINFO();
+	nfsstat3 ProcedurePATHCONF();
+	nfsstat3 ProcedureCOMMIT();
+	nfsstat3 ProcedureNOIMP();
+
+	void Read(bool* pBool);
+	void Read(uint32* pUint32);
+	void Read(uint64* pUint64);
+	void Read(SAttr3* pAttr);
+	void Read(SAttrGuard3* pGuard);
+	void Read(DirOpArgs3* pDir);
+	void Read(Opaque* pOpaque);
+	void Read(NFSTime3* pTime);
+	void Read(CreateHow3* pHow);
+	void Read(SymlinkData3* pSymlink);
+	void Write(bool* pBool);
+	void Write(uint32* pUint32);
+	void Write(uint64* pUint64);
+	void Write(FAttr3* pAttr);
+	void Write(Opaque* pOpaque);
+	void Write(WccData* pWcc);
+	void Write(PostOpAttr* pAttr);
+	void Write(PreOpAttr* pAttr);
+	void Write(PostOpFH3* pObj);
+	void Write(NFSTime3* pTime);
+	void Write(SpecData3* pSpec);
+	void Write(WccAttr* pAttr);
+
+private:
+	int m_result;
+
+	bool GetPath(std::string& path);
+	bool ReadDirectory(std::string& dirName, std::string& fileName);
+	char* GetFullPath(std::string& dirName, std::string& fileName);
+	nfsstat3 CheckFile(const char* fullPath);
+	nfsstat3 CheckFile(const char* directory, const char* fullPath);
+	bool GetFileHandle(const char* path, NFSv3FileHandle* pObject);
+	bool GetFileAttributesForNFS(const char* path, WccAttr* pAttr);
+	bool GetFileAttributesForNFS(const char* path, FAttr3* pAttr);
+	UINT32 FileTimeToPOSIX(FILETIME ft);
+	std::unordered_map<int, FILE*> unstableStorageFile;
 };
 
-class nfs_fh3 : public opaque
-{
-    public:
-    nfs_fh3();
-    ~nfs_fh3();
-};
-
-class filename3 : public opaque
-{
-    public:
-    char *name;
-
-    filename3();
-    ~filename3();
-    void SetSize(uint32 len);
-    void Set(char *str);
-};
-
-class nfspath3 : public opaque
-{
-	public:
-	char *path;
-
-	nfspath3();
-	~nfspath3();
-	void SetSize(uint32 len);
-    void Set(char *str);
-};
-
-typedef struct
-{
-    uint32 specdata1;
-    uint32 specdata2;
-} specdata3;
-
-typedef struct
-{
-    uint32 seconds;
-    uint32 nseconds;
-} nfstime3;
-
-typedef struct
-{
-    bool check;
-    nfstime3 obj_ctime;
-} sattrguard3;
-
-typedef struct
-{
-    ftype3 type;
-    mode3 mode;
-    uint32 nlink;
-    uid3 uid;
-    gid3 gid;
-    size3 size;
-    size3 used;
-    specdata3 rdev;
-    uint64 fsid;
-    fileid3 fileid;
-    nfstime3 atime;
-    nfstime3 mtime;
-    nfstime3 ctime;
-} fattr3;
-
-typedef struct
-{
-    bool attributes_follow;
-    fattr3 attributes;
-} post_op_attr;
-
-typedef struct
-{
-    size3 size;
-    nfstime3 mtime;
-    nfstime3 ctime;
-} wcc_attr;
-
-typedef struct
-{
-    bool attributes_follow;
-    wcc_attr attributes;
-} pre_op_attr;
-
-typedef struct
-{
-    pre_op_attr before;
-    post_op_attr after;
-} wcc_data;
-
-typedef struct
-{
-    bool handle_follows;
-    nfs_fh3 handle;
-} post_op_fh3;
-
-typedef struct
-{
-    bool set_it;
-    mode3 mode;
-} set_mode3;
-
-typedef struct
-{
-    bool set_it;
-    uid3 uid;
-} set_uid3;
-
-typedef struct
-{
-    bool set_it;
-    gid3 gid;
-} set_gid3;
-
-typedef struct
-{
-    bool set_it;
-    size3 size;
-} set_size3;
-
-typedef struct
-{
-    time_how set_it;
-    nfstime3 atime;
-} set_atime;
-
-typedef struct
-{
-    time_how set_it;
-    nfstime3 mtime;
-} set_mtime;
-
-typedef struct
-{
-    set_mode3 mode;
-    set_uid3 uid;
-    set_gid3 gid;
-    set_size3 size;
-    set_atime atime;
-    set_mtime mtime;
-} sattr3;
-
-typedef struct
-{
-    nfs_fh3 dir;
-    filename3 name;
-} diropargs3;
-
-typedef struct
-{
-    createmode3 mode;
-    sattr3 obj_attributes;
-    createverf3 verf;
-} createhow3;
-
-typedef struct 
-{
-	sattr3 symlink_attributes;
-	nfspath3 symlink_data;
-} symlinkdata3;
-
-typedef struct _REPARSE_DATA_BUFFER {
-	ULONG  ReparseTag;
-	USHORT ReparseDataLength;
-	USHORT Reserved;
-	union {
-		struct {
-			USHORT SubstituteNameOffset;
-			USHORT SubstituteNameLength;
-			USHORT PrintNameOffset;
-			USHORT PrintNameLength;
-			ULONG  Flags;
-			WCHAR  PathBuffer[1];
-		} SymbolicLinkReparseBuffer;
-		struct {
-			USHORT SubstituteNameOffset;
-			USHORT SubstituteNameLength;
-			USHORT PrintNameOffset;
-			USHORT PrintNameLength;
-			WCHAR  PathBuffer[1];
-		} MountPointReparseBuffer;
-		struct {
-			UCHAR DataBuffer[1];
-		} GenericReparseBuffer;
-	};
-} REPARSE_DATA_BUFFER, *PREPARSE_DATA_BUFFER;
-
-class CNFS3Prog : public RPCProg
-{
-    public:
-    CNFS3Prog();
-    ~CNFS3Prog();
-    void SetUserID(unsigned int nUID, unsigned int nGID);
-    int Process(IInputStream *pInStream, IOutputStream *pOutStream, ProcessParam *pParam);
-
-    protected:
-    unsigned long m_nUID, m_nGID;
-    IInputStream *m_inStream;
-    IOutputStream *m_outStream;
-    ProcessParam *m_param;
-
-    nfsstat3 ProcedureNULL(void);
-    nfsstat3 ProcedureGETATTR(void);
-    nfsstat3 ProcedureSETATTR(void);
-    nfsstat3 ProcedureLOOKUP(void);
-    nfsstat3 ProcedureACCESS(void);
-    nfsstat3 ProcedureREADLINK(void);
-    nfsstat3 ProcedureREAD(void);
-    nfsstat3 ProcedureWRITE(void);
-    nfsstat3 ProcedureCREATE(void);
-    nfsstat3 ProcedureMKDIR(void);
-    nfsstat3 ProcedureSYMLINK(void);
-    nfsstat3 ProcedureMKNOD(void);
-    nfsstat3 ProcedureREMOVE(void);
-    nfsstat3 ProcedureRMDIR(void);
-    nfsstat3 ProcedureRENAME(void);
-    nfsstat3 ProcedureLINK(void);
-    nfsstat3 ProcedureREADDIR(void);
-    nfsstat3 ProcedureREADDIRPLUS(void);
-    nfsstat3 ProcedureFSSTAT(void);
-    nfsstat3 ProcedureFSINFO(void);
-    nfsstat3 ProcedurePATHCONF(void);
-    nfsstat3 ProcedureCOMMIT(void);
-    nfsstat3 ProcedureNOIMP(void);
-
-    void Read(bool *pBool);
-    void Read(uint32 *pUint32);
-    void Read(uint64 *pUint64);
-    void Read(sattr3 *pAttr);
-    void Read(sattrguard3 *pGuard);
-    void Read(diropargs3 *pDir);
-    void Read(opaque *pOpaque);
-    void Read(nfstime3 *pTime);
-    void Read(createhow3 *pHow);
-	void Read(symlinkdata3 *pSymlink);
-    void Write(bool *pBool);
-    void Write(uint32 *pUint32);
-    void Write(uint64 *pUint64);
-    void Write(fattr3 *pAttr);
-    void Write(opaque *pOpaque);
-    void Write(wcc_data *pWcc);
-    void Write(post_op_attr *pAttr);
-    void Write(pre_op_attr *pAttr);
-    void Write(post_op_fh3 *pObj);
-    void Write(nfstime3 *pTime);
-    void Write(specdata3 *pSpec);
-    void Write(wcc_attr *pAttr);
-
-    private:
-    int m_result;
-
-    bool GetPath(std::string &path);
-    bool ReadDirectory(std::string &dirName, std::string &fileName);
-    char *GetFullPath(std::string &dirName, std::string &fileName);
-    nfsstat3 CheckFile(const char *fullPath);
-    nfsstat3 CheckFile(const char *directory, const char *fullPath);
-    bool GetFileHandle(const char *path, nfs_fh3 *pObject);
-    bool GetFileAttributesForNFS(const char *path, wcc_attr *pAttr);
-    bool GetFileAttributesForNFS(const char *path, fattr3 *pAttr);
-    UINT32 FileTimeToPOSIX(FILETIME ft);
-    std::unordered_map<int, FILE*> unstableStorageFile;
-};
-
-#endif
+#endif // ICENFSD_NFS3PROG_H

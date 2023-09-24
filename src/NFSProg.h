@@ -1,21 +1,30 @@
-#ifndef _NFSPROG_H_
-#define _NFSPROG_H_
+/////////////////////////////////////////////////////////////////////
+/// file: NFSProg.h
+///
+/// summary: NFS RPC
+/////////////////////////////////////////////////////////////////////
+
+#ifndef ICENFSD_NFSPROG_H
+#define ICENFSD_NFSPROG_H
 
 #include "RPCProg.h"
-#include "NFS3Prog.h"
+#include <memory>
 
-class CNFSProg : public RPCProg
+class NFS3Prog;
+
+class NFSProg : public RPCProg
 {
-    public:
-    CNFSProg();
-    ~CNFSProg();
-    void SetUserID(unsigned int nUID, unsigned int nGID);
-    int Process(IInputStream *pInStream, IOutputStream *pOutStream, ProcessParam *pParam);
-    void EnableLog(bool bLogOn);
+ public:
+    NFSProg();
+    ~NFSProg();
 
-    private:
-    unsigned int m_nUID, m_nGID;
-    CNFS3Prog *m_pNFS3Prog;
+    void SetUserID(unsigned int uid, unsigned int gid);
+    int Process(IInputStream *inStream, IOutputStream *outStream, ProcessParam *param);
+    void EnableLog(bool enableLog);
+
+private:
+    unsigned int m_uid, m_gid;
+    std::unique_ptr<NFS3Prog> m_nfs3;
 };
 
-#endif
+#endif // ICENFSD_NFSPROG_H

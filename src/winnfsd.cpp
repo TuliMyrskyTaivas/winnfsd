@@ -36,7 +36,7 @@ static bool g_bLogOn;
 static char *g_sFileName;
 static RPCServer g_RPCServer;
 static PortmapProg g_PortmapProg;
-static CNFSProg g_NFSProg;
+static NFSProg g_NFSProg;
 static MountProg g_MountProg;
 
 struct MountPoint

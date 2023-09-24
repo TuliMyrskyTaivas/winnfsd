@@ -1,44 +1,57 @@
+/////////////////////////////////////////////////////////////////////
+/// file: NFSProg.h
+///
+/// summary: NFS RPC
+/////////////////////////////////////////////////////////////////////
+
 #include "NFSProg.h"
+#include "NFS3Prog.h"
 
-CNFSProg::CNFSProg() : RPCProg()
+/////////////////////////////////////////////////////////////////////
+NFSProg::NFSProg()
+    : RPCProg()
+    , m_uid(0)
+    , m_gid(0)
+    , m_nfs3(nullptr)
+{}
+
+/////////////////////////////////////////////////////////////////////
+NFSProg::~NFSProg()
+{}
+
+/////////////////////////////////////////////////////////////////////
+void NFSProg::SetUserID(unsigned int uid, unsigned int gid)
 {
-    m_nUID = m_nGID = 0;
-    m_pNFS3Prog = NULL;
+    m_uid = uid;
+    m_gid = gid;
 }
 
-CNFSProg::~CNFSProg()
+/////////////////////////////////////////////////////////////////////
+int NFSProg::Process(IInputStream *inStream, IOutputStream *outStream, ProcessParam *param)
 {
-    delete m_pNFS3Prog;
-}
-
-void CNFSProg::SetUserID(unsigned int nUID, unsigned int nGID)
-{
-    m_nUID = nUID;
-    m_nGID = nGID;
-}
-
-int CNFSProg::Process(IInputStream *pInStream, IOutputStream *pOutStream, ProcessParam *pParam)
-{
-    if (pParam->nVersion == 3) {
-        if (m_pNFS3Prog == NULL) {
-            m_pNFS3Prog = new CNFS3Prog();
-            m_pNFS3Prog->SetUserID(m_nUID, m_nGID);
-            m_pNFS3Prog->EnableLog(m_enableLog);
+    if (param->nVersion == 3)
+    {
+        if (!m_nfs3)
+        {
+            m_nfs3 = std::make_unique<NFS3Prog>(m_uid, m_gid, m_enableLog);
         }
 
-        return m_pNFS3Prog->Process(pInStream, pOutStream, pParam);
-    } else {
-        PrintLog("Client requested NFS version %u which isn't supported.\n", pParam->nVersion);
+        return m_nfs3->Process(inStream, outStream, param);
+    }
+    else
+    {
+        PrintLog("Client requested NFS version %u which isn't supported.\n", param->nVersion);
         return PRC_NOTIMP;
     }
 }
 
-void CNFSProg::EnableLog(bool bLogOn)
+/////////////////////////////////////////////////////////////////////
+void NFSProg::EnableLog(bool enableLog)
 {
-    RPCProg::EnableLog(bLogOn);
+    RPCProg::EnableLog(enableLog);
 
-    if (m_pNFS3Prog != NULL) {
-        m_pNFS3Prog->EnableLog(bLogOn);
+    if (m_nfs3 != nullptr)
+    {
+        m_nfs3->EnableLog(enableLog);
     }
-
 }

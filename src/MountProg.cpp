@@ -47,7 +47,6 @@ MountProg::MountProg()
 	, m_inStream(nullptr)
 	, m_outStream(nullptr)
 	, m_param(nullptr)
-	, m_result(0)
 {
     memset(m_clientAddr, 0, sizeof(m_clientAddr));
 }

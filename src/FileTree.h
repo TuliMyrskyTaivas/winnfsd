@@ -1,25 +1,30 @@
-#ifndef _FILETREE_H_
-#define _FILETREE_H_
+/////////////////////////////////////////////////////////////////////
+/// file: FileTree.h
+///
+/// summary: File tree
+/////////////////////////////////////////////////////////////////////
+
+#ifndef ICENFSD_FILETREE_H
+#define ICENFSD_FILETREE_H
 
 #include "FileTable.h"
 
-class CFileTree
+class FileTree
 {
-	public:
-		bool static const debug = false;
-		FILE_ITEM AddItem(const char *absolutePath, unsigned char *handle);
-		void RemoveItem(const char *absolutePath);
-		void RenameItem(const char *absolutePathFrom, const char *absolutePathTo);
+public:
+	bool static const debug = false;
+	FileItem AddItem(const char* absolutePath, unsigned char* handle);
+	void RemoveItem(const char* absolutePath);
+	void RenameItem(const char* absolutePathFrom, const char* absolutePathTo);
 
-		tree_node_<FILE_ITEM>* FindFileItemForPath(const char *absolutePath);
+	tree_node_<FileItem>* FindFileItemForPath(const char* absolutePath);
 
-        void GetNodeFullPath(tree_node_<FILE_ITEM>* node, std::string &fullPath);
-		
-	protected:
-		tree_node_<FILE_ITEM>* findNodeFromRootWithPath(const char *path);
-		tree_node_<FILE_ITEM>* findNodeWithPathFromNode(const char *path, tree_node_<FILE_ITEM>* node);
-		tree_node_<FILE_ITEM>* findParentNodeFromRootForPath(const char *path);
+	void GetNodeFullPath(tree_node_<FileItem>* node, std::string& fullPath);
+
+protected:
+	tree_node_<FileItem>* FindNodeFromRootWithPath(const char* path);
+	tree_node_<FileItem>* FindNodeWithPathFromNode(const char* path, tree_node_<FileItem>* node);
+	tree_node_<FileItem>* FindParentNodeFromRootForPath(const char* path);
 };
-extern void DisplayTree(tree_node_<FILE_ITEM>* node, int level);
 
-#endif
+#endif // ICENFSD_FILETREE_H

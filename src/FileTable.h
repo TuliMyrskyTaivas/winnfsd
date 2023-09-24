@@ -1,61 +1,67 @@
-#ifndef _FILETABLE_H_
-#define _FILETABLE_H_
+/////////////////////////////////////////////////////////////////////
+/// file: FileTable.h
+///
+/// summary: File table
+/////////////////////////////////////////////////////////////////////
+
+#ifndef ICENFSD_FILETABLE_H
+#define ICENFSD_FILETABLE_H
 
 #define TABLE_SIZE 1024
 
 #include "tree.hh"
 
-typedef struct
+struct FileItem
 {
-    char *path;
-    unsigned int nPathLen;
-    unsigned char *handle;
-    bool bCached;
-} FILE_ITEM;
-
-typedef struct _FILE_TABLE
-{
-	 tree_node_<FILE_ITEM>* pItems[TABLE_SIZE];
-    _FILE_TABLE *pNext;
-} FILE_TABLE;
-
-typedef struct _CACHE_LIST
-{
-    FILE_ITEM *pItem;
-    _CACHE_LIST *pNext;
-} CACHE_LIST;
-
-class CFileTable
-{
-    public:
-    CFileTable();
-    ~CFileTable();
-    unsigned long GetIDByPath(const char *path);
-    unsigned char *GetHandleByPath(const char *path);
-    bool GetPathByHandle(unsigned char *handle, std::string &path);
-	tree_node_<FILE_ITEM>* FindItemByPath(const char *path);
-    bool RemoveItem(const char *path);
-	void RenameFile(const char *pathFrom, const char *pathTo);
-
-    protected:
-		tree_node_<FILE_ITEM>* AddItem(const char *path);
-
-    private:
-    FILE_TABLE *m_pFirstTable, *m_pLastTable;
-    unsigned int m_nTableSize;
-    CACHE_LIST *m_pCacheList;
-
-	tree_node_<FILE_ITEM>* GetItemByID(unsigned int nID);
-    void PutItemInCache(FILE_ITEM *pItem);
-
+	char* path;
+	unsigned int pathLen;
+	unsigned char* handle;
+	bool cached;
 };
 
-extern bool FileExists(const char *path);
-extern unsigned long GetFileID(const char *path);
-extern unsigned char *GetFileHandle(const char *path);
-extern bool GetFilePath(unsigned char *handle, std::string &filePath);
-extern int RenameFile(const char *pathFrom, const char *pathTo);
-extern int RenameDirectory(const char *pathFrom, const char *pathTo);
-extern int RemoveFolder(const char *path);
-extern bool RemoveFile(const char *path);
-#endif
+struct FileTableNode
+{
+	tree_node_<FileItem>* items[TABLE_SIZE];
+	FileTableNode* next;
+};
+
+struct CacheList
+{
+	FileItem* item;
+	CacheList* next;
+};
+
+class FileTable
+{
+public:
+	FileTable();
+	~FileTable();
+
+	unsigned long GetIDByPath(const char* path);
+	unsigned char* GetHandleByPath(const char* path);
+	bool GetPathByHandle(unsigned char* handle, std::string& path);
+	tree_node_<FileItem>* FindItemByPath(const char* path);
+	bool RemoveItem(const char* path);
+	void RenameFile(const char* pathFrom, const char* pathTo);
+
+protected:
+	tree_node_<FileItem>* AddItem(const char* path);
+
+private:
+	FileTableNode* m_firstTable, * m_lastTable;
+	unsigned int m_tableSize;
+	CacheList* m_cacheList;
+
+	tree_node_<FileItem>* GetItemByID(unsigned int id);
+	void PutItemInCache(FileItem* item);
+};
+
+extern bool FileExists(const char* path);
+extern unsigned long GetFileID(const char* path);
+extern unsigned char* GetFileHandle(const char* path);
+extern bool GetFilePath(unsigned char* handle, std::string& filePath);
+extern int RenameFile(const char* pathFrom, const char* pathTo);
+extern int RenameDirectory(const char* pathFrom, const char* pathTo);
+extern int RemoveFolder(const char* path);
+extern bool RemoveFile(const char* path);
+#endif // ICENFSD_FILETABLE_H
