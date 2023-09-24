@@ -1,8 +1,11 @@
-#ifndef _RPCPROG_H_
-#define _RPCPROG_H_
+/////////////////////////////////////////////////////////////////////
+/// file: RPCProg.h
+///
+/// summary: RPC program
+/////////////////////////////////////////////////////////////////////
 
-#include "InputStream.h"
-#include "OutputStream.h"
+#ifndef ICENFSD_RPCPROG_H
+#define ICENFSD_RPCPROG_H
 
 /* The maximum number of bytes in a pathname argument. */
 #define MAXPATHLEN 1024
@@ -28,17 +31,21 @@ typedef struct
     char *pRemoteAddr;
 } ProcessParam;
 
-class CRPCProg
-{
-    public:
-    CRPCProg();
-    virtual ~CRPCProg();
-    virtual int Process(IInputStream *pInStream, IOutputStream *pOutStream, ProcessParam *pParam) = 0;
-    virtual void SetLogOn(bool bLogOn);
+class IInputStream;
+class IOutputStream;
 
-    protected:
-    bool m_bLogOn;
+class RPCProg
+{
+public:
+    RPCProg();
+    virtual ~RPCProg() = default;
+
+    virtual int Process(IInputStream *inStream, IOutputStream *outStream, ProcessParam *param) = 0;
+    virtual void EnableLog(bool enableLog);
+
+protected:
+    bool m_enableLog;
     virtual int PrintLog(const char *format, ...);
 };
 
-#endif
+#endif // ICENFSD_RPCPROG_H

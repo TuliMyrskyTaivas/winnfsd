@@ -1,6 +1,8 @@
 #pragma comment(lib, "Shlwapi.lib")
 #include "NFSProg.h"
 #include "FileTable.h"
+#include "InputStream.h"
+#include "OutputStream.h"
 #include <string.h>
 #include <io.h>
 #include <direct.h>
@@ -201,7 +203,7 @@ void nfspath3::Set(char *str)
 
 typedef nfsstat3(CNFS3Prog::*PPROC)(void);
 
-CNFS3Prog::CNFS3Prog() : CRPCProg()
+CNFS3Prog::CNFS3Prog() : RPCProg()
 {
     m_nUID = m_nGID = 0;
 }
@@ -246,23 +248,23 @@ int CNFS3Prog::Process(IInputStream *pInStream, IOutputStream *pOutStream, Proce
         return PRC_NOTIMP;
     }
 
-    m_pInStream = pInStream;
-    m_pOutStream = pOutStream;
-    m_pParam = pParam;
-    m_nResult = PRC_OK;
+    m_inStream = pInStream;
+    m_outStream = pOutStream;
+    m_param = pParam;
+    m_result = PRC_OK;
 
     try {
         stat = (this->*pf[pParam->nProc])();
     } catch (const std::runtime_error& re) {
-        m_nResult = PRC_FAIL;
+        m_result = PRC_FAIL;
         PrintLog("Runtime error: ");
         PrintLog(re.what());
     } catch (const std::exception& ex) {
-        m_nResult = PRC_FAIL;
+        m_result = PRC_FAIL;
         PrintLog("Exception: ");
         PrintLog(ex.what());
     } catch (...) {
-        m_nResult = PRC_FAIL;
+        m_result = PRC_FAIL;
         PrintLog("Unknown failure: Possible memory corruption");
     }
 
@@ -365,7 +367,7 @@ int CNFS3Prog::Process(IInputStream *pInStream, IOutputStream *pOutStream, Proce
 
     PrintLog("\n");
 
-    return m_nResult;
+    return m_result;
 }
 
 nfsstat3 CNFS3Prog::ProcedureNULL(void)
@@ -1576,7 +1578,7 @@ nfsstat3 CNFS3Prog::ProcedureCOMMIT(void)
 nfsstat3 CNFS3Prog::ProcedureNOIMP(void)
 {
     PrintLog("NOIMP");
-    m_nResult = PRC_NOTIMP;
+    m_result = PRC_NOTIMP;
 
     return NFS3_OK;
 }
@@ -1585,7 +1587,7 @@ void CNFS3Prog::Read(bool *pBool)
 {
     uint32 b;
 
-    if (m_pInStream->Read(&b) < sizeof(uint32)) {
+    if (m_inStream->Read(&b) < sizeof(uint32)) {
         throw __LINE__;
     }
         
@@ -1594,14 +1596,14 @@ void CNFS3Prog::Read(bool *pBool)
 
 void CNFS3Prog::Read(uint32 *pUint32)
 {
-    if (m_pInStream->Read(pUint32) < sizeof(uint32)) {
+    if (m_inStream->Read(pUint32) < sizeof(uint32)) {
         throw __LINE__;
     }       
 }
 
 void CNFS3Prog::Read(uint64 *pUint64)
 {
-    if (m_pInStream->Read8(pUint64) < sizeof(uint64)) {
+    if (m_inStream->Read8(pUint64) < sizeof(uint64)) {
         throw __LINE__;
     }        
 }
@@ -1667,14 +1669,14 @@ void CNFS3Prog::Read(opaque *pOpaque)
     Read(&len);
     pOpaque->SetSize(len);
 
-    if (m_pInStream->Read(pOpaque->contents, len) < len) {
+    if (m_inStream->Read(pOpaque->contents, len) < len) {
         throw __LINE__;
     }        
 
     len = 4 - (len & 3);
 
     if (len != 4) {
-        if (m_pInStream->Read(&byte, len) < len) {
+        if (m_inStream->Read(&byte, len) < len) {
             throw __LINE__;
         }            
     }
@@ -1705,17 +1707,17 @@ void CNFS3Prog::Read(symlinkdata3 *pSymlink)
 
 void CNFS3Prog::Write(bool *pBool)
 {
-    m_pOutStream->Write(*pBool ? 1 : 0);
+    m_outStream->Write(*pBool ? 1 : 0);
 }
 
 void CNFS3Prog::Write(uint32 *pUint32)
 {
-    m_pOutStream->Write(*pUint32);
+    m_outStream->Write(*pUint32);
 }
 
 void CNFS3Prog::Write(uint64 *pUint64)
 {
-    m_pOutStream->Write8(*pUint64);
+    m_outStream->Write8(*pUint64);
 }
 
 void CNFS3Prog::Write(fattr3 *pAttr)
@@ -1740,12 +1742,12 @@ void CNFS3Prog::Write(opaque *pOpaque)
     uint32 len, byte;
 
     Write(&pOpaque->length);
-    m_pOutStream->Write(pOpaque->contents, pOpaque->length);
+    m_outStream->Write(pOpaque->contents, pOpaque->length);
     len = pOpaque->length & 3;
 
     if (len != 0) {
         byte = 0;
-        m_pOutStream->Write(&byte, 4 - len);
+        m_outStream->Write(&byte, 4 - len);
     }
 }
 

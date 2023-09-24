@@ -1,33 +1,39 @@
+/////////////////////////////////////////////////////////////////////
+/// file: RPCProg.h
+///
+/// summary: RPC program
+/////////////////////////////////////////////////////////////////////
+
 #include "RPCProg.h"
-#include <stdarg.h>
-#include <stdio.h>
+#include "InputStream.h"
+#include "OutputStream.h"
 
-CRPCProg::CRPCProg()
+#include <cstdarg>
+#include <cstdio>
+
+/////////////////////////////////////////////////////////////////////
+RPCProg::RPCProg()
+    : m_enableLog(true)
+{}
+
+/////////////////////////////////////////////////////////////////////
+void RPCProg::EnableLog(bool enableLog)
 {
-    m_bLogOn = true;
+    m_enableLog = enableLog;
 }
 
-CRPCProg::~CRPCProg()
+/////////////////////////////////////////////////////////////////////
+int RPCProg::PrintLog(const char *format, ...)
 {
-}
+    int result = 0;
 
-void CRPCProg::SetLogOn(bool bLogOn)
-{
-    m_bLogOn = bLogOn;
-}
-
-int CRPCProg::PrintLog(const char *format, ...)
-{
-    va_list vargs;
-    int nResult;
-
-    nResult = 0;
-
-    if (m_bLogOn) {
+    if (m_enableLog)
+    {
+        va_list vargs;
         va_start(vargs, format);
-        nResult = vprintf(format, vargs);
+        result = vprintf(format, vargs);
         va_end(vargs);
     }
 
-    return nResult;
+    return result;
 }

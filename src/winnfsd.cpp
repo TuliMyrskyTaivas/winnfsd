@@ -1,3 +1,9 @@
+/////////////////////////////////////////////////////////////////////
+/// file: winnfsd.cpp
+///
+/// summary: entry point
+/////////////////////////////////////////////////////////////////////
+
 #include "Socket.h"
 #include "RPCServer.h"
 #include "PortmapProg.h"
@@ -5,8 +11,8 @@
 #include "MountProg.h"
 #include "ServerSocket.h"
 #include "DatagramSocket.h"
-#include <stdio.h>
-#include <direct.h>
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <fstream>
 #include <vector>
@@ -28,37 +34,51 @@ enum
 static unsigned int g_nUID, g_nGID;
 static bool g_bLogOn;
 static char *g_sFileName;
-static CRPCServer g_RPCServer;
-static CPortmapProg g_PortmapProg;
+static RPCServer g_RPCServer;
+static PortmapProg g_PortmapProg;
 static CNFSProg g_NFSProg;
-static CMountProg g_MountProg;
+static MountProg g_MountProg;
 
-static void printUsage(char *pExe)
+struct MountPoint
 {
-    printf("\n");
-    printf("Usage: %s [-id <uid> <gid>] [-log on | off] [-pathFile <file>] [-addr <ip>] [export path] [alias path]\n\n", pExe);
-    printf("At least a file or a path is needed\n");
-    printf("For example:\n");
-    printf("On Windows> %s d:\\work\n", pExe);
-    printf("On Linux> mount -t nfs 192.168.12.34:/d/work mount\n\n");
-    printf("For another example:\n");
-    printf("On Windows> %s d:\\work /exports\n", pExe);
-    printf("On Linux> mount -t nfs 192.168.12.34:/exports\n\n");
-    printf("Another example where WinNFSd is only bound to a specific interface:\n");
-    printf("On Windows> %s -addr 192.168.12.34 d:\\work /exports\n", pExe);
-    printf("On Linux> mount - t nfs 192.168.12.34: / exports\n\n");
-    printf("Use \".\" to export the current directory (works also for -filePath):\n");
-    printf("On Windows> %s . /exports\n", pExe);
+    std::string path;
+    std::string alias;
+
+    MountPoint(const char* path, const char* alias)
+        : path(path)
+        , alias(alias)
+    {}
+};
+
+/////////////////////////////////////////////////////////////////////
+static void PrintUsage(char *exeFilename)
+{
+    std::cout
+        << "\nUsage: " << exeFilename << " [-id <uid> <gid>] [-log on | off] [-pathFile <file>] [-addr <ip>] [export path] [alias path]\n\n"
+        << "At least a file or a path is needed\n"
+        << "For example:\n"
+        << "On Windows> " << exeFilename << " d:\\work\n"
+        << "On Linux> mount -t nfs 192.168.12.34:/d/work mount\n\n"
+        << "For another example:\n"
+        << "On Windows> " << exeFilename << " d:\\work /exports\n"
+        << "On Linux> mount -t nfs 192.168.12.34:/exports\n\n"
+        << "Another example where WinNFSd is only bound to a specific interface:\n"
+        << "On Windows> " << exeFilename << " -addr 192.168.12.34 d:\\work /exports\n"
+        << "On Linux> mount - t nfs 192.168.12.34: / exports\n\n"
+        << "Use \".\" to export the current directory (works also for -filePath):\n"
+        << "On Windows> " << exeFilename << " . /exports\n";
 }
 
-static void printLine(void)
+/////////////////////////////////////////////////////////////////////
+static void PrintLine()
 {
-    printf("=====================================================\n");
+    std::cout << "=====================================================\n";
 }
 
-static void printAbout(void)
+/////////////////////////////////////////////////////////////////////
+static void PrintAbout()
 {
-    printLine();
+    PrintLine();
     printf("WinNFSd {{VERSION}} [{{HASH}}]\n");
     printf("Network File System server for Windows\n");
     printf("Copyright (C) 2005 Ming-Yang Kao\n");
@@ -66,12 +86,13 @@ static void printAbout(void)
     printf("Edited in 2013 by Alexander Schneider (Jankowfsky AG)\n");
 	printf("Edited in 2014 2015 by Yann Schepens\n");
 	printf("Edited in 2016 by Peter Philipp (Cando Image GmbH), Marc Harding\n");
-    printLine();
+    PrintLine();
 }
 
-static void printHelp(void)
+/////////////////////////////////////////////////////////////////////
+static void PrintHelp()
 {
-    printLine();
+    PrintLine();
     printf("Commands:\n");
     printf("about: display messages about this program\n");
     printf("help: display help\n");
@@ -80,225 +101,257 @@ static void printHelp(void)
     printf("refresh: refresh the mounted folders\n");
     printf("reset: reset the service\n");
     printf("quit: quit this program\n");
-    printLine();
+    PrintLine();
 }
 
-static void printCount(void)
+/////////////////////////////////////////////////////////////////////
+static void PrintCount()
 {
-    int nNum;
-
-    nNum = g_MountProg.GetMountNumber();
-
-    if (nNum == 0) {
-        printf("There is no client mounted.\n");
-    } else if (nNum == 1) {
-        printf("There is 1 client mounted.\n");
-    } else {
-        printf("There are %d clients mounted.\n", nNum);
-    }
+    std::cout << "There are " << g_MountProg.GetMountNumber() << " clients mounted\n";
 }
 
-static void printList(void)
+/////////////////////////////////////////////////////////////////////
+static void PrintMounts()
 {
-    int i, nNum;
+    PrintLine();
+    const int mounts = g_MountProg.GetMountNumber();
 
-    printLine();
-    nNum = g_MountProg.GetMountNumber();
-
-    for (i = 0; i < nNum; i++) {
-        printf("%s\n", g_MountProg.GetClientAddr(i));
+    for (int i = 0; i < mounts; i++)
+    {
+        std::cout << g_MountProg.GetClientAddr(i);
     }
 
-    printCount();
-    printLine();
+    PrintCount();
+    PrintLine();
 }
 
-static void printConfirmQuit(void)
+/////////////////////////////////////////////////////////////////////
+static void PrintConfirmQuit()
 {
     printf("\n");
-    printCount();
+    PrintCount();
     printf("Are you sure to quit? (y/N): ");
 }
 
-static void mountPaths(std::vector<std::vector<std::string>> paths)
+/////////////////////////////////////////////////////////////////////
+static void MountPaths(const std::vector<MountPoint>& paths)
 {
-	const size_t numberOfElements = paths.size();
-
-	for (size_t i = 0; i < numberOfElements; i++) {
-		char *pPath = (char*)paths[i][0].c_str();
-		char *pPathAlias = (char*)paths[i][1].c_str();
-		g_MountProg.Export(pPath, pPathAlias);  //export path for mount
+	for (const auto& mountPoint : paths)
+    {
+		g_MountProg.Export(mountPoint.path.c_str(), mountPoint.alias.c_str());
 	}
 }
 
-static void inputCommand(void)
+/////////////////////////////////////////////////////////////////////
+static void InputCommand()
 {
 	char command[20];
 
 	printf("Type 'help' to see help\n\n");
 
-	while (true) {
+	while (true)
+    {
 		fgets(command, 20, stdin);
 
-		if (command[strlen(command) - 1] == '\n') {
+		if (command[strlen(command) - 1] == '\n')
+        {
 			command[strlen(command) - 1] = '\0';
 		}
 
-		if (_stricmp(command, "about") == 0) {
-			printAbout();
-		} else if (_stricmp(command, "help") == 0) {
-			printHelp();
-		} else if (_stricmp(command, "log on") == 0) {
-			g_RPCServer.SetLogOn(true);
-		} else if (_stricmp(command, "log off") == 0) {
-			g_RPCServer.SetLogOn(false);
-		} else if (_stricmp(command, "list") == 0) {
-			printList();
-		} else if (_stricmp(command, "quit") == 0) {
-			if (g_MountProg.GetMountNumber() == 0) {
+		if (_stricmp(command, "about") == 0)
+        {
+			PrintAbout();
+		}
+        else if (_stricmp(command, "help") == 0)
+        {
+			PrintHelp();
+		}
+        else if (_stricmp(command, "log on") == 0)
+        {
+			g_RPCServer.EnableLog(true);
+		}
+        else if (_stricmp(command, "log off") == 0)
+        {
+			g_RPCServer.EnableLog(false);
+		}
+        else if (_stricmp(command, "list") == 0)
+        {
+			PrintMounts();
+		}
+        else if (_stricmp(command, "quit") == 0)
+        {
+			if (g_MountProg.GetMountNumber() == 0)
+            {
 				break;
-			} else {
-				printConfirmQuit();
+			}
+            else
+            {
+				PrintConfirmQuit();
 				fgets(command, 20, stdin);
 
-				if (command[0] == 'y' || command[0] == 'Y') {
+				if (command[0] == 'y' || command[0] == 'Y')
+                {
 					break;
 				}
 			}
-		} else if (_stricmp(command, "refresh") == 0) {
+		}
+        else if (_stricmp(command, "refresh") == 0)
+        {
 			g_MountProg.Refresh();
-		} else if (_stricmp(command, "reset") == 0) {
-			g_RPCServer.Set(PROG_NFS, NULL);
-		} else if (strcmp(command, "") != 0) {
+		}
+        else if (_stricmp(command, "reset") == 0)
+        {
+			g_RPCServer.Set(PROG_NFS, nullptr);
+		}
+        else if (strcmp(command, "") != 0)
+        {
 			printf("Unknown command: '%s'\n", command);
 			printf("Type 'help' to see help\n");
 		}
 	}
 }
 
-static void start(std::vector<std::vector<std::string>> paths)
+/////////////////////////////////////////////////////////////////////
+static void Start(const std::vector<MountPoint>& paths)
 {
-	int i;
-	CDatagramSocket DatagramSockets[SOCKET_NUM];
+	DatagramSocket DatagramSockets[SOCKET_NUM];
 	ServerSocket ServerSockets[SOCKET_NUM];
-	bool bSuccess;
-	hostent *localHost;
 
 	g_PortmapProg.Set(PROG_MOUNT, MOUNT_PORT);  //map port for mount
 	g_PortmapProg.Set(PROG_NFS, NFS_PORT);  //map port for nfs
 	g_NFSProg.SetUserID(g_nUID, g_nGID);  //set uid and gid of files
 
-	mountPaths(paths);
+	MountPaths(paths);
 
 	g_RPCServer.Set(PROG_PORTMAP, &g_PortmapProg);  //program for portmap
 	g_RPCServer.Set(PROG_NFS, &g_NFSProg);  //program for nfs
 	g_RPCServer.Set(PROG_MOUNT, &g_MountProg);  //program for mount
-	g_RPCServer.SetLogOn(g_bLogOn);
+	g_RPCServer.EnableLog(g_bLogOn);
 
-	for (i = 0; i < SOCKET_NUM; i++) {
+	for (int i = 0; i < SOCKET_NUM; i++)
+    {
 		DatagramSockets[i].SetListener(&g_RPCServer);
 		ServerSockets[i].SetListener(&g_RPCServer);
 	}
 
-	bSuccess = false;
+	bool success = false;
 
-	if (ServerSockets[0].Open(PORTMAP_PORT, 3) && DatagramSockets[0].Open(PORTMAP_PORT)) { //start portmap daemon
-		printf("Portmap daemon started\n");
+	if (ServerSockets[0].Open(PORTMAP_PORT, 3) && DatagramSockets[0].Open(PORTMAP_PORT)) //start portmap daemon
+    {
+		std::cout << "Portmap daemon started\n";
+		if (ServerSockets[1].Open(NFS_PORT, 10) && DatagramSockets[1].Open(NFS_PORT)) //start nfs daemon
+        {
+			std::cout << "NFS daemon started\n";
 
-		if (ServerSockets[1].Open(NFS_PORT, 10) && DatagramSockets[1].Open(NFS_PORT)) { //start nfs daemon
-			printf("NFS daemon started\n");
-
-			if (ServerSockets[2].Open(MOUNT_PORT, 3) && DatagramSockets[2].Open(MOUNT_PORT)) { //start mount daemon
-				printf("Mount daemon started\n");
-				bSuccess = true;  //all daemon started
-			} else {
-				printf("Mount daemon starts failed (check if port 1058 is not already in use ;) ).\n");
+			if (ServerSockets[2].Open(MOUNT_PORT, 3) && DatagramSockets[2].Open(MOUNT_PORT)) //start mount daemon
+            {
+				std::cout << "Mount daemon started\n";
+				success = true;  //all daemon started
 			}
-		} else {
-			printf("NFS daemon starts failed.\n");
+            else
+            {
+				std::cout << "Mount daemon starts failed (check if port " << MOUNT_PORT << " is not already in use\n";
+			}
 		}
-	} else {
-		printf("Portmap daemon starts failed.\n");
+        else
+        {
+			std::cout << "NFS daemon starts failed.\n";
+		}
+	}
+    else
+    {
+		std::cout << "Portmap daemon starts failed.\n";
 	}
 
-
-	if (bSuccess) {
-		localHost = gethostbyname("");
+	if (success)
+    {
 		printf("Listening on %s\n", g_sInAddr);  //local address
-		inputCommand();  //wait for commands
+		InputCommand();  //wait for commands
 	}
 
-	for (i = 0; i < SOCKET_NUM; i++) {
+	for (int i = 0; i < SOCKET_NUM; i++)
+    {
 		DatagramSockets[i].Close();
 		ServerSockets[i].Close();
 	}
 }
 
+/////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
+try
 {
-    std::vector<std::vector<std::string>> pPaths;
-    char *pPath = NULL;
+    std::vector<MountPoint> paths;
+    char *pathPointer = nullptr;
 	bool pathFile = false;
 
-    WSADATA wsaData;
+    PrintAbout();
 
-    printAbout();
-
-    if (argc < 2) {
-        pPath = strrchr(argv[0], '\\');
-        pPath = pPath == NULL ? argv[0] : pPath + 1;
-        printUsage(pPath);
+    if (argc < 2)
+    {
+        pathPointer = strrchr(argv[0], '\\');
+        pathPointer = pathPointer == nullptr ? argv[0] : pathPointer + 1;
+        PrintUsage(pathPointer);
         return 1;
     }
 
     g_nUID = g_nGID = 0;
     g_bLogOn = true;
-    g_sFileName = NULL;
+    g_sFileName = nullptr;
 	g_sInAddr = "0.0.0.0";
 
-    for (int i = 1; i < argc; i++) {//parse parameters
-        if (_stricmp(argv[i], "-id") == 0) {
+    for (int i = 1; i < argc; i++)
+    {
+        if (_stricmp(argv[i], "-id") == 0)
+        {
             g_nUID = atoi(argv[++i]);
             g_nGID = atoi(argv[++i]);
-        } else if (_stricmp(argv[i], "-log") == 0) {
+        }
+        else if (_stricmp(argv[i], "-log") == 0)
+        {
             g_bLogOn = _stricmp(argv[++i], "off") != 0;
-        } else if (_stricmp(argv[i], "-addr") == 0) {
+        }
+        else if (_stricmp(argv[i], "-addr") == 0)
+        {
 			g_sInAddr = argv[++i];
-		} else if (_stricmp(argv[i], "-pathFile") == 0) {
+		}
+        else if (_stricmp(argv[i], "-pathFile") == 0)
+        {
             g_sFileName = argv[++i];
 
-			if (g_MountProg.SetPathFile(g_sFileName) == false) {
+			if (g_MountProg.SetPathFile(g_sFileName) == false)
+            {
                 printf("Can't open file %s.\n", g_sFileName);
                 return 1;
-			} else {
+			}
+            else
+            {
 				g_MountProg.Refresh();
 				pathFile = true;
 			}
-        } else if (i == argc - 2) {
-            pPath = argv[argc - 2];  //path is before the last parameter
+        }
+        else if (i == argc - 2)
+        {
+            pathPointer = argv[argc - 2];  //path is before the last parameter
+            char* pathAlias = argv[argc - 1]; //path alias is the last parameter
 
-            char *pCurPathAlias = argv[argc - 1]; //path alias is the last parameter
-
-            if (pPath != NULL || pCurPathAlias != NULL) {
-                std::vector<std::string> pCurPaths;
-                pCurPaths.push_back(std::string(pPath));
-                pCurPaths.push_back(std::string(pCurPathAlias));
-                pPaths.push_back(pCurPaths);
+            if (pathPointer != nullptr || pathAlias != nullptr)
+            {
+                paths.emplace_back(pathPointer, pathAlias);
             }
 
             break;
-        } else if (i == argc - 1) {
-            pPath = argv[argc - 1];  //path is the last parameter
+        }
+        else if (i == argc - 1)
+        {
+            pathPointer = argv[argc - 1];  //path is the last parameter
 
-            if (pPath != NULL) {
+            if (pathPointer != nullptr)
+            {
                 char curPathAlias[MAXPATHLEN];
-                strcpy_s(curPathAlias, pPath);
+                strcpy_s(curPathAlias, pathPointer);
                 char *pCurPathAlias = curPathAlias;
 
-                std::vector<std::string> pCurPaths;
-                pCurPaths.push_back(std::string(pPath));
-                pCurPaths.push_back(std::string(pCurPathAlias));
-                pPaths.push_back(pCurPaths);
+                paths.emplace_back(pathPointer, pCurPathAlias);
             }
 
             break;
@@ -307,18 +360,26 @@ int main(int argc, char *argv[])
 
     HWND console = GetConsoleWindow();
 
-    if (g_bLogOn == false && IsWindow(console)) {
+    if (g_bLogOn == false && IsWindow(console))
+    {
         ShowWindow(console, SW_HIDE); // hides the window
     }
 
-	if (pPaths.size() <= 0 && !pathFile) {
+	if (paths.size() <= 0 && !pathFile)
+    {
         printf("No paths to mount\n");
         return 1;
     }
 
+    WSADATA wsaData;
     WSAStartup(0x0101, &wsaData);
-    start(pPaths);
+    Start(paths);
     WSACleanup();
 
-    return 0;
+    return EXIT_SUCCESS;
+}
+catch (const std::exception& e)
+{
+    std::cerr << e.what() << std::endl;
+    return EXIT_FAILURE;
 }

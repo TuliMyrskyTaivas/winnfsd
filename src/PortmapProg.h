@@ -1,5 +1,11 @@
-#ifndef _PORTMAPPROG_H_
-#define _PORTMAPPROG_H_
+/////////////////////////////////////////////////////////////////////
+/// file: PortmapProg.h
+///
+/// summary: Port mapper RPC
+/////////////////////////////////////////////////////////////////////
+
+#ifndef ICENFSD_PORTMAPPROG_H
+#define ICENFSD_PORTMAPPROG_H
 
 #include "RPCProg.h"
 
@@ -13,32 +19,32 @@ typedef struct
     unsigned long port;
 } PORTMAP_HEADER;
 
-class CPortmapProg : public CRPCProg
+class PortmapProg : public RPCProg
 {
-    public:
-    CPortmapProg();
-    virtual ~CPortmapProg();
-    void Set(unsigned long nProg, unsigned long nPort);
-    int Process(IInputStream *pInStream, IOutputStream *pOutStream, ProcessParam *pParam);
+ public:
+    PortmapProg();
+    virtual ~PortmapProg() = default;
 
-    protected:
-    unsigned long m_nPortTable[PORT_NUM];
-    IInputStream *m_pInStream;
-    IOutputStream *m_pOutStream;
+    void Set(unsigned long prog, unsigned long port);
+    int Process(IInputStream* inStream, IOutputStream* outStream, ProcessParam* param);
 
-    void ProcedureNOIMP(void);
-    void ProcedureNULL(void);
-    void ProcedureSET(void);
-    void ProcedureUNSET(void);
-    void ProcedureGETPORT(void);
-    void ProcedureDUMP(void);
-    void ProcedureCALLIT(void);
+ protected:
+    unsigned long m_portTable[PORT_NUM];
+    IInputStream* m_inStream;
+    IOutputStream* m_outStream;
 
-    private:
-    ProcessParam *m_pParam;
-    int m_nResult;
+    int ProcedureNOIMP() noexcept;
+    int ProcedureNULL() noexcept;
+    int ProcedureSET() noexcept;
+    int ProcedureUNSET() noexcept;
+    int ProcedureGETPORT() noexcept;
+    int ProcedureDUMP() noexcept;
+    int ProcedureCALLIT() noexcept;
+
+private:
+    ProcessParam *m_param;
 
     void Write(unsigned long prog, unsigned long vers, unsigned long proto, unsigned long port);
 };
 
-#endif
+#endif // ICENFSD_PORTMAPPROG_H

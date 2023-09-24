@@ -1,5 +1,13 @@
+/////////////////////////////////////////////////////////////////////
+/// file: PortmapProg.cpp
+///
+/// summary: Port mapper RPC
+/////////////////////////////////////////////////////////////////////
+
 #include "PortmapProg.h"
-#include <string.h>
+#include "InputStream.h"
+#include "OutputStream.h"
+#include <cstring>
 
 #define MIN_PROG_NUM 100000
 enum
@@ -32,84 +40,92 @@ enum
     PROG_MOUNT = 100005
 };
 
-typedef void (CPortmapProg::*PPROC)(void);
+typedef int (PortmapProg::*PPROC)();
 
-CPortmapProg::CPortmapProg() : CRPCProg()
+/////////////////////////////////////////////////////////////////////
+PortmapProg::PortmapProg()
+    : RPCProg()
+    , m_inStream(nullptr)
+    , m_outStream(nullptr)
+    , m_param(nullptr)
 {
-    memset(m_nPortTable, 0, PORT_NUM * sizeof(int));
+    memset(m_portTable, 0, PORT_NUM * sizeof(int));
 }
 
-CPortmapProg::~CPortmapProg()
+/////////////////////////////////////////////////////////////////////
+void PortmapProg::Set(unsigned long prog, unsigned long port)
 {
+    m_portTable[prog - MIN_PROG_NUM] = port;  //set port for program
 }
 
-void CPortmapProg::Set(unsigned long nProg, unsigned long nPort)
-{
-    m_nPortTable[nProg - MIN_PROG_NUM] = nPort;  //set port for program
-}
-
-int CPortmapProg::Process(IInputStream *pInStream, IOutputStream *pOutStream, ProcessParam *pParam)
+/////////////////////////////////////////////////////////////////////
+int PortmapProg::Process(IInputStream *pInStream, IOutputStream *pOutStream, ProcessParam *pParam)
 {
     static PPROC pf[] = {
-        &CPortmapProg::ProcedureNULL, &CPortmapProg::ProcedureSET, &CPortmapProg::ProcedureUNSET,
-        &CPortmapProg::ProcedureGETPORT, &CPortmapProg::ProcedureDUMP, &CPortmapProg::ProcedureCALLIT
+        &PortmapProg::ProcedureNULL, &PortmapProg::ProcedureSET, &PortmapProg::ProcedureUNSET,
+        &PortmapProg::ProcedureGETPORT, &PortmapProg::ProcedureDUMP, &PortmapProg::ProcedureCALLIT
     };
 
     PrintLog("PORTMAP ");
 
-    if (pParam->nProc >= sizeof(pf) / sizeof(PPROC)) {
+    if (pParam->nProc >= sizeof(pf) / sizeof(PPROC))
+    {
         ProcedureNOIMP();
         PrintLog("\n");
         return PRC_NOTIMP;
     }
 
-    m_pInStream = pInStream;
-    m_pOutStream = pOutStream;
-    m_pParam = pParam;
-    m_nResult = PRC_OK;
-    (this->*pf[pParam->nProc])();
-    PrintLog("\n");
-
-    return m_nResult;
+    m_inStream = pInStream;
+    m_outStream = pOutStream;
+    m_param = pParam;
+    return (this->*pf[pParam->nProc])();
 }
 
-void CPortmapProg::ProcedureNOIMP(void)
+/////////////////////////////////////////////////////////////////////
+int PortmapProg::ProcedureNOIMP() noexcept
 {
     PrintLog("NOIMP");
-    m_nResult = PRC_NOTIMP;
+    return PRC_NOTIMP;
 }
 
-void CPortmapProg::ProcedureNULL(void)
+/////////////////////////////////////////////////////////////////////
+int PortmapProg::ProcedureNULL() noexcept
 {
     PrintLog("NULL");
+    return PRC_OK;
 }
 
-void CPortmapProg::ProcedureSET(void)
+/////////////////////////////////////////////////////////////////////
+int PortmapProg::ProcedureSET() noexcept
 {
     PrintLog("SET - NOIMP");
-    m_nResult = PRC_NOTIMP;
+    return PRC_NOTIMP;
 }
 
-void CPortmapProg::ProcedureUNSET(void)
+/////////////////////////////////////////////////////////////////////
+int PortmapProg::ProcedureUNSET() noexcept
 {
     PrintLog("UNSET - NOIMP");
-    m_nResult = PRC_NOTIMP;
+    return PRC_NOTIMP;
 }
 
-void CPortmapProg::ProcedureGETPORT(void)
+/////////////////////////////////////////////////////////////////////
+int PortmapProg::ProcedureGETPORT() noexcept
 {
     PORTMAP_HEADER header;
-    unsigned long nPort;
+    unsigned long port;
 
     PrintLog("GETPORT");
-    m_pInStream->Read(&header.prog);  //program
-    m_pInStream->Skip(12);
-    nPort = header.prog >= MIN_PROG_NUM && header.prog < MIN_PROG_NUM + PORT_NUM ? m_nPortTable[header.prog - MIN_PROG_NUM] : 0;
-    PrintLog(" %d %d", header.prog, nPort);
-    m_pOutStream->Write(nPort);  //port
+    m_inStream->Read(&header.prog);  //program
+    m_inStream->Skip(12);
+    port = header.prog >= MIN_PROG_NUM && header.prog < MIN_PROG_NUM + PORT_NUM ? m_portTable[header.prog - MIN_PROG_NUM] : 0;
+    PrintLog(" %d %d", header.prog, port);
+    m_outStream->Write(port);  //port
+    return PRC_OK;
 }
 
-void CPortmapProg::ProcedureDUMP(void)
+/////////////////////////////////////////////////////////////////////
+int PortmapProg::ProcedureDUMP() noexcept
 {
     PrintLog("DUMP");
 
@@ -120,20 +136,23 @@ void CPortmapProg::ProcedureDUMP(void)
     Write(PROG_MOUNT, 3, IPPROTO_TCP, MOUNT_PORT);
     Write(PROG_MOUNT, 3, IPPROTO_UDP, MOUNT_PORT);
 
-    m_pOutStream->Write(0);
+    m_outStream->Write(0);
+    return PRC_OK;
 }
 
-void CPortmapProg::ProcedureCALLIT(void)
+/////////////////////////////////////////////////////////////////////
+int PortmapProg::ProcedureCALLIT() noexcept
 {
     PrintLog("CALLIT - NOIMP");
-    m_nResult = PRC_NOTIMP;
+    return PRC_NOTIMP;
 }
 
-void CPortmapProg::Write(unsigned long prog, unsigned long vers, unsigned long proto, unsigned long port)
+/////////////////////////////////////////////////////////////////////
+void PortmapProg::Write(unsigned long prog, unsigned long vers, unsigned long proto, unsigned long port)
 {
-    m_pOutStream->Write(1);
-    m_pOutStream->Write(prog);
-    m_pOutStream->Write(vers);
-    m_pOutStream->Write(proto);
-    m_pOutStream->Write(port);
+    m_outStream->Write(1);
+    m_outStream->Write(prog);
+    m_outStream->Write(vers);
+    m_outStream->Write(proto);
+    m_outStream->Write(port);
 }

@@ -224,7 +224,7 @@ typedef struct _REPARSE_DATA_BUFFER {
 	};
 } REPARSE_DATA_BUFFER, *PREPARSE_DATA_BUFFER;
 
-class CNFS3Prog : public CRPCProg
+class CNFS3Prog : public RPCProg
 {
     public:
     CNFS3Prog();
@@ -234,9 +234,9 @@ class CNFS3Prog : public CRPCProg
 
     protected:
     unsigned long m_nUID, m_nGID;
-    IInputStream *m_pInStream;
-    IOutputStream *m_pOutStream;
-    ProcessParam *m_pParam;
+    IInputStream *m_inStream;
+    IOutputStream *m_outStream;
+    ProcessParam *m_param;
 
     nfsstat3 ProcedureNULL(void);
     nfsstat3 ProcedureGETATTR(void);
@@ -286,7 +286,7 @@ class CNFS3Prog : public CRPCProg
     void Write(wcc_attr *pAttr);
 
     private:
-    int m_nResult;
+    int m_result;
 
     bool GetPath(std::string &path);
     bool ReadDirectory(std::string &dirName, std::string &fileName);

@@ -1,5 +1,11 @@
-#ifndef _RPCSERVER_H_
-#define _RPCSERVER_H_
+/////////////////////////////////////////////////////////////////////
+/// file: RPCServer.h
+///
+/// summary: RPC server implementation
+/////////////////////////////////////////////////////////////////////
+
+#ifndef ICENFSD_RPCSERVER_H
+#define ICENFSD_RPCSERVER_H
 
 #include "SocketListener.h"
 #include "Socket.h"
@@ -8,20 +14,21 @@
 
 #define PROG_NUM 10
 
-class CRPCServer : public ISocketListener
+class RPCServer : public ISocketListener
 {
-    public:
-    CRPCServer();
-    virtual ~CRPCServer();
-    void Set(int nProg, CRPCProg *pRPCProg);
-    void SetLogOn(bool bLogOn);
-    void SocketReceived(Socket *pSocket);
+public:
+    RPCServer();
+    virtual ~RPCServer();
 
-    protected:
-    CRPCProg *m_pProgTable[PROG_NUM];
-    HANDLE m_hMutex;
+    void Set(int progNumber, RPCProg *progHandle);
+    void EnableLog(bool enableLog);
+    void SocketReceived(Socket* socket);
 
-    int Process(int nType, IInputStream *pInStream, IOutputStream *pOutStream, char *pRemoteAddr);
+protected:
+    RPCProg* m_progTable[PROG_NUM];
+    HANDLE m_mutex;
+
+    int Process(int type, IInputStream* inStream, IOutputStream* outStream, char* remoteAddr);
 };
 
-#endif
+#endif // ICENFSD_RPCSERVER_H

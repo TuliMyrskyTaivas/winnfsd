@@ -1,3 +1,9 @@
+/////////////////////////////////////////////////////////////////////
+/// file: RPCServer.h
+///
+/// summary: RPC server implementation
+/////////////////////////////////////////////////////////////////////
+
 #include "RPCServer.h"
 #include "ServerSocket.h"
 #include <stdio.h>
@@ -43,127 +49,148 @@ typedef struct
     OPAQUE_AUTH verf;
 } RPC_HEADER;
 
-CRPCServer::CRPCServer()
+/////////////////////////////////////////////////////////////////////
+RPCServer::RPCServer()
+    : m_mutex(CreateMutex(nullptr, false, nullptr))
 {
-    int i;
-
-    for (i = 0; i < PROG_NUM; i++) {
-        m_pProgTable[i] = NULL;
-    }
-        
-    m_hMutex = CreateMutex(NULL, false, NULL);
+    for (int i = 0; i < PROG_NUM; i++)
+    {
+        m_progTable[i] = nullptr;
+    }   
 }
 
-CRPCServer::~CRPCServer()
+/////////////////////////////////////////////////////////////////////
+RPCServer::~RPCServer()
 {
-    CloseHandle(m_hMutex);
+    CloseHandle(m_mutex);
 }
 
-void CRPCServer::Set(int nProg, CRPCProg *pRPCProg)
+/////////////////////////////////////////////////////////////////////
+void RPCServer::Set(int progNum, RPCProg *progHandle)
 {
-    m_pProgTable[nProg - MIN_PROG_NUM] = pRPCProg;  //set program handler
+    m_progTable[progNum - MIN_PROG_NUM] = progHandle;  //set program handler
 }
 
-void CRPCServer::SetLogOn(bool bLogOn)
+/////////////////////////////////////////////////////////////////////
+void RPCServer::EnableLog(bool enableLog)
 {
-    int i;
-
-    for (i = 0; i < PROG_NUM; i++) {
-        if (m_pProgTable[i] != NULL) {
-            m_pProgTable[i]->SetLogOn(bLogOn);
+    for (int i = 0; i < PROG_NUM; i++)
+    {
+        if (m_progTable[i] != NULL)
+        {
+            m_progTable[i]->EnableLog(enableLog);
         }
     }  
 }
 
-void CRPCServer::SocketReceived(Socket *pSocket)
+/////////////////////////////////////////////////////////////////////
+void RPCServer::SocketReceived(Socket *socket)
 {
-    IInputStream *pInStream;
-    int nResult;
+    IInputStream *inStream;
+    int result;
 
-    WaitForSingleObject(m_hMutex, INFINITE);
-    pInStream = pSocket->GetInputStream();
+    WaitForSingleObject(m_mutex, INFINITE);
+    inStream = socket->GetInputStream();
 
-    while (pInStream->GetSize() > 0) {
-        nResult = Process(pSocket->GetType(), pInStream, pSocket->GetOutputStream(), pSocket->GetRemoteAddress());  //process input data
-        pSocket->Send();  //send response
+    while (inStream->GetSize() > 0)
+    {
+        result = Process(socket->GetType(), inStream, socket->GetOutputStream(), socket->GetRemoteAddress());  //process input data
+        socket->Send();  //send response
 
-        if (nResult != PRC_OK || pSocket->GetType() == SOCK_DGRAM) {
+        if (result != PRC_OK || socket->GetType() == SOCK_DGRAM)
+        {
             break;
         }
     }
 
-    ReleaseMutex(m_hMutex);
+    ReleaseMutex(m_mutex);
 }
 
-int CRPCServer::Process(int nType, IInputStream *pInStream, IOutputStream *pOutStream, char *pRemoteAddr)
+/////////////////////////////////////////////////////////////////////
+int RPCServer::Process(int type, IInputStream *inStream, IOutputStream *outStream, char *remoteAddr)
 {
     RPC_HEADER header;
-    int nPos = 0, nSize = 0;
+    int pos = 0, size = 0;
     ProcessParam param;
-    int nResult = PRC_OK;
+    int result = PRC_OK;
 
-    if (nType == SOCK_STREAM) {
-        pInStream->Read(&header.header);
+    if (type == SOCK_STREAM)
+    {
+        inStream->Read(&header.header);
     }    
 
-    pInStream->Read(&header.XID);
-    pInStream->Read(&header.msg);
-    pInStream->Read(&header.rpcvers);  //rpc version
-    pInStream->Read(&header.prog);  //program
-    pInStream->Read(&header.vers);  //program version
-    pInStream->Read(&header.proc);  //procedure
-    pInStream->Read(&header.cred.flavor);
-    pInStream->Read(&header.cred.length);
-    pInStream->Skip(header.cred.length);
-    pInStream->Read(&header.verf.flavor);  //vefifier
+    inStream->Read(&header.XID);
+    inStream->Read(&header.msg);
+    inStream->Read(&header.rpcvers);  //rpc version
+    inStream->Read(&header.prog);  //program
+    inStream->Read(&header.vers);  //program version
+    inStream->Read(&header.proc);  //procedure
+    inStream->Read(&header.cred.flavor);
+    inStream->Read(&header.cred.length);
+    inStream->Skip(header.cred.length);
+    inStream->Read(&header.verf.flavor);  //verifier
 
-    if (pInStream->Read(&header.verf.length) < sizeof(header.verf.length)) {
-        nResult = PRC_FAIL;
+    if (inStream->Read(&header.verf.length) < sizeof(header.verf.length))
+    {
+        result = PRC_FAIL;
     }
         
-    if (pInStream->Skip(header.verf.length) < header.verf.length) {
-        nResult = PRC_FAIL;
+    if (inStream->Skip(header.verf.length) < header.verf.length)
+    {
+        result = PRC_FAIL;
     }      
 
-    if (nType == SOCK_STREAM) {
-        nPos = pOutStream->GetPosition();  //remember current position
-        pOutStream->Write(header.header);  //this value will be updated later
+    if (type == SOCK_STREAM)
+    {
+        pos = outStream->GetPosition();  //remember current position
+        outStream->Write(header.header);  //this value will be updated later
     }
 
-    pOutStream->Write(header.XID);
-    pOutStream->Write(REPLY);
-    pOutStream->Write(MSG_ACCEPTED);
-    pOutStream->Write(header.verf.flavor);
-    pOutStream->Write(header.verf.length);
+    outStream->Write(header.XID);
+    outStream->Write(REPLY);
+    outStream->Write(MSG_ACCEPTED);
+    outStream->Write(header.verf.flavor);
+    outStream->Write(header.verf.length);
 
-    if (nResult == PRC_FAIL) { //input data is truncated
-        pOutStream->Write(GARBAGE_ARGS);
-    } else if (header.prog < MIN_PROG_NUM || header.prog >= MIN_PROG_NUM + PROG_NUM) { //program is unavailable
-        pOutStream->Write(PROG_UNAVAIL);
-    } else if (m_pProgTable[header.prog - MIN_PROG_NUM] == NULL) { //program is unavailable
-        pOutStream->Write(PROG_UNAVAIL);
-    } else {
-        pOutStream->Write(SUCCESS);  //this value may be modified later if process failed
+    if (result == PRC_FAIL) //input data is truncated
+    { 
+        outStream->Write(GARBAGE_ARGS);
+    }
+    else if (header.prog < MIN_PROG_NUM || header.prog >= MIN_PROG_NUM + PROG_NUM) //program is unavailable
+    {
+        outStream->Write(PROG_UNAVAIL);
+    }
+    else if (m_progTable[header.prog - MIN_PROG_NUM] == NULL) //program is unavailable
+    {
+        outStream->Write(PROG_UNAVAIL);
+    }
+    else
+    {
+        outStream->Write(SUCCESS);  //this value may be modified later if process failed
         param.nVersion = header.vers;
         param.nProc = header.proc;
-        param.pRemoteAddr = pRemoteAddr;
-        nResult = m_pProgTable[header.prog - MIN_PROG_NUM]->Process(pInStream, pOutStream, &param);  //process rest input data by program
+        param.pRemoteAddr = remoteAddr;
+        result = m_progTable[header.prog - MIN_PROG_NUM]->Process(inStream, outStream, &param);  //process rest input data by program
 
-        if (nResult == PRC_NOTIMP) { //procedure is not implemented
-            pOutStream->Seek(-4, SEEK_CUR);
-            pOutStream->Write(PROC_UNAVAIL);
-        } else if (nResult == PRC_FAIL) { //input data is truncated
-            pOutStream->Seek(-4, SEEK_CUR);
-            pOutStream->Write(GARBAGE_ARGS);
+        if (result == PRC_NOTIMP) //procedure is not implemented
+        {
+            outStream->Seek(-4, SEEK_CUR);
+            outStream->Write(PROC_UNAVAIL);
+        }
+        else if (result == PRC_FAIL) //input data is truncated
+        {
+            outStream->Seek(-4, SEEK_CUR);
+            outStream->Write(GARBAGE_ARGS);
         }
     }
 
-    if (nType == SOCK_STREAM) {
-        nSize = pOutStream->GetPosition();  //remember current position
-        pOutStream->Seek(nPos, SEEK_SET);  //seek to the position of head
-        header.header = 0x80000000 + nSize - nPos - 4;  //size of output data
-        pOutStream->Write(header.header);  //update header
+    if (type == SOCK_STREAM)
+    {
+        size = outStream->GetPosition();  //remember current position
+        outStream->Seek(pos, SEEK_SET);  //seek to the position of head
+        header.header = 0x80000000 + size - pos - 4;  //size of output data
+        outStream->Write(header.header);  //update header
     }
 
-    return nResult;
+    return result;
 }

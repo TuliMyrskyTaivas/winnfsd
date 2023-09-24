@@ -1,6 +1,6 @@
 #include "NFSProg.h"
 
-CNFSProg::CNFSProg() : CRPCProg()
+CNFSProg::CNFSProg() : RPCProg()
 {
     m_nUID = m_nGID = 0;
     m_pNFS3Prog = NULL;
@@ -23,7 +23,7 @@ int CNFSProg::Process(IInputStream *pInStream, IOutputStream *pOutStream, Proces
         if (m_pNFS3Prog == NULL) {
             m_pNFS3Prog = new CNFS3Prog();
             m_pNFS3Prog->SetUserID(m_nUID, m_nGID);
-            m_pNFS3Prog->SetLogOn(m_bLogOn);
+            m_pNFS3Prog->EnableLog(m_enableLog);
         }
 
         return m_pNFS3Prog->Process(pInStream, pOutStream, pParam);
@@ -33,12 +33,12 @@ int CNFSProg::Process(IInputStream *pInStream, IOutputStream *pOutStream, Proces
     }
 }
 
-void CNFSProg::SetLogOn(bool bLogOn)
+void CNFSProg::EnableLog(bool bLogOn)
 {
-    CRPCProg::SetLogOn(bLogOn);
+    RPCProg::EnableLog(bLogOn);
 
     if (m_pNFS3Prog != NULL) {
-        m_pNFS3Prog->SetLogOn(bLogOn);
+        m_pNFS3Prog->EnableLog(bLogOn);
     }
 
 }

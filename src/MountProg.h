@@ -1,5 +1,11 @@
-#ifndef _MOUNTPROG_H_
-#define _MOUNTPROG_H_
+/////////////////////////////////////////////////////////////////////
+/// file: MountProg.h
+///
+/// summary: NFS mount RPC
+/////////////////////////////////////////////////////////////////////
+
+#ifndef ICENFSD_MOUNTPROG_H
+#define ICENFSD_MOUNTPROG_H
 
 #include "RPCProg.h"
 #include <map>
@@ -8,47 +14,48 @@
 #define MOUNT_NUM_MAX 100
 #define MOUNT_PATH_MAX 100
 
-enum pathFormats
+enum PathFormat
 {
 	FORMAT_PATH = 1,
 	FORMAT_PATHALIAS = 2
 };
 
-class CMountProg : public CRPCProg
+class MountProg : public RPCProg
 {
-    public:
-    CMountProg();
-    virtual ~CMountProg();
+ public:
+    MountProg();
+    virtual ~MountProg();
+
 	bool SetPathFile(const char *file);
     void Export(const char *path, const char *pathAlias);
 	bool Refresh();
-    char *GetClientAddr(int nIndex);
-    int GetMountNumber(void);
-    int Process(IInputStream *pInStream, IOutputStream *pOutStream, ProcessParam *pParam);
-	char *FormatPath(const char *pPath, pathFormats format);
+    char *GetClientAddr(int index);
+    int GetMountNumber() const noexcept;
+    int Process(IInputStream *inStream, IOutputStream *outStream, ProcessParam *param);
+	char *FormatPath(const char *path, PathFormat format);
 
-    protected:
-    int m_nMountNum;
-	char *m_pPathFile;
-	std::map<std::string, std::string> m_PathMap;
-    char *m_pClientAddr[MOUNT_NUM_MAX];
-    IInputStream *m_pInStream;
-    IOutputStream *m_pOutStream;
+ protected:
+    int m_mountNum;
+	char *m_pathFile;
+	std::map<std::string, std::string> m_pathMap;
+    char *m_clientAddr[MOUNT_NUM_MAX];
+    IInputStream *m_inStream;
+    IOutputStream *m_outStream;
 
-    void ProcedureNULL(void);
-    void ProcedureMNT(void);
-    void ProcedureUMNT(void);
-    void ProcedureUMNTALL(void);
-    void ProcedureEXPORT(void);
-    void ProcedureNOIMP(void);
+    int ProcedureNULL() noexcept;
+    int ProcedureMNT() noexcept;
+    int ProcedureUMNT() noexcept;
+    int ProcedureUMNTALL() noexcept;
+    int ProcedureEXPORT() noexcept;
+    int ProcedureNOIMP() noexcept;
 
-    private:
-    ProcessParam *m_pParam;
-    int m_nResult;
+private:
+    ProcessParam *m_param;
+    int m_result;
 
 	bool GetPath(char **returnPath);
     char *GetPath(int &pathNumber);
-	bool ReadPathsFromFile(const char* sFileName);
+	bool ReadPathsFromFile(const char* fileName);
 };
 
-#endif
+#endif // ICENFSD_MOUNTPROG_H

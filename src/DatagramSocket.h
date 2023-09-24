@@ -1,27 +1,34 @@
-#ifndef _DATAGRAMSOCKET_H_
-#define _DATAGRAMSOCKET_H_
+/////////////////////////////////////////////////////////////////////
+/// file: DatagramSocket.h
+///
+/// summary: UDP socket
+/////////////////////////////////////////////////////////////////////
 
-#include "SocketListener.h"
-#include "Socket.h"
+#ifndef ICENFSD_DATAGRAMSOCKET_H
+#define ICENFSD_DATAGRAMSOCKET_H
+
 #include <winsock.h>
 
-class CDatagramSocket
-{
-    public:
-    CDatagramSocket();
-    ~CDatagramSocket();
-    void SetListener(ISocketListener *pListener);
-    bool Open(int nPort);
-    void Close(void);
-    int GetPort(void);
-    void Run(void);
+class Socket;
+class ISocketListener;
 
-    private:
+class DatagramSocket
+{
+public:
+    DatagramSocket();
+    ~DatagramSocket();
+
+    void SetListener(ISocketListener* listener);
+    bool Open(int port);
+    void Close();
+    int GetPort() const noexcept;
+
+private:
     int m_port;
-    SOCKET m_Socket;
+    SOCKET m_socket;
     Socket *m_pSocket;
     bool m_closed;
-    ISocketListener *m_listener;
+    ISocketListener* m_listener;
 };
 
-#endif
+#endif // ICENFSD_DATAGRAMSOCKET_H
