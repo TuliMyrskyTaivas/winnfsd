@@ -23,13 +23,13 @@
 
 struct Opaque
 {
-	uint32 length;
+	uint32_t length;
 	unsigned char* contents;
 
 	Opaque();
-	Opaque(uint32 len);
+	Opaque(uint32_t len);
 	virtual ~Opaque();
-	virtual void SetSize(uint32 len);
+	virtual void SetSize(uint32_t len);
 };
 
 struct NFSv3FileHandle : public Opaque
@@ -44,7 +44,7 @@ struct NFSv3Filename : public Opaque
 
 	NFSv3Filename();
 	~NFSv3Filename() = default;
-	void SetSize(uint32 len);
+	void SetSize(uint32_t len);
 	void Set(char* str);
 };
 
@@ -54,20 +54,20 @@ struct NFSv3Path : public Opaque
 
 	NFSv3Path();
 	~NFSv3Path() = default;
-	void SetSize(uint32 len);
+	void SetSize(uint32_t len);
 	void Set(char* str);
 };
 
 struct SpecData3
 {
-	uint32 specdata1;
-	uint32 specdata2;
+	uint32_t specdata1;
+	uint32_t specdata2;
 };
 
 struct NFSTime3
 {
-	uint32 seconds;
-	uint32 nseconds;
+	uint32_t seconds;
+	uint32_t nseconds;
 };
 
 struct SAttrGuard3
@@ -78,16 +78,16 @@ struct SAttrGuard3
 
 struct FAttr3
 {
-	ftype3 type;
-	mode3 mode;
-	uint32 nlink;
-	uid3 uid;
-	gid3 gid;
-	size3 size;
-	size3 used;
+	FType3 type;
+	Mode3 mode;
+	uint32_t nlink;
+	Uid3 uid;
+	Gid3 gid;
+	Size3 size;
+	Size3 used;
 	SpecData3 rdev;
-	uint64 fsid;
-	fileid3 fileid;
+	uint64_t fsid;
+	FileId3 fileid;
 	NFSTime3 atime;
 	NFSTime3 mtime;
 	NFSTime3 ctime;
@@ -101,7 +101,7 @@ struct PostOpAttr
 
 struct WccAttr
 {
-	size3 size;
+	Size3 size;
 	NFSTime3 mtime;
 	NFSTime3 ctime;
 };
@@ -127,36 +127,36 @@ struct PostOpFH3
 struct SetMode3
 {
 	bool setIt;
-	mode3 mode;
+	Mode3 mode;
 };
 
 struct SetUid3
 {
 	bool setIt;
-	uid3 uid;
+	Uid3 uid;
 };
 
 struct SetGid3
 {
 	bool setIt;
-	gid3 gid;
+	Gid3 gid;
 };
 
 struct SetSize3
 {
 	bool setIt;
-	size3 size;
+	Size3 size;
 };
 
 struct SetAtime
 {
-	time_how setIt;
+	TimeHow setIt;
 	NFSTime3 atime;
 };
 
 struct SetMtime
 {
-	time_how setIt;
+	TimeHow setIt;
 	NFSTime3 mtime;
 };
 
@@ -178,9 +178,9 @@ struct DirOpArgs3
 
 struct CreateHow3
 {
-	createmode3 mode;
+	CreateMode3 mode;
 	SAttr3 objAttributes;
-	createverf3 verf;
+	CreateVerf3 verf;
 };
 
 struct SymlinkData3
@@ -337,7 +337,7 @@ Opaque::Opaque()
 }
 
 /////////////////////////////////////////////////////////////////////
-Opaque::Opaque(uint32 len)
+Opaque::Opaque(uint32_t len)
 {
 	contents = NULL;
 	SetSize(len);
@@ -350,7 +350,7 @@ Opaque::~Opaque()
 }
 
 /////////////////////////////////////////////////////////////////////
-void Opaque::SetSize(uint32 len)
+void Opaque::SetSize(uint32_t len)
 {
 	delete[] contents;
 	length = len;
@@ -370,7 +370,7 @@ NFSv3Filename::NFSv3Filename()
 {}
 
 /////////////////////////////////////////////////////////////////////
-void NFSv3Filename::SetSize(uint32 len)
+void NFSv3Filename::SetSize(uint32_t len)
 {
 	Opaque::SetSize(len + 1);
 	length = len;
@@ -380,7 +380,7 @@ void NFSv3Filename::SetSize(uint32 len)
 /////////////////////////////////////////////////////////////////////
 void NFSv3Filename::Set(char* str)
 {
-	SetSize(static_cast<uint32>(strlen(str)));
+	SetSize(static_cast<uint32_t>(strlen(str)));
 	strcpy_s(name, (strlen(str) + 1), str);
 }
 
@@ -391,7 +391,7 @@ NFSv3Path::NFSv3Path()
 {}
 
 /////////////////////////////////////////////////////////////////////
-void NFSv3Path::SetSize(uint32 len)
+void NFSv3Path::SetSize(uint32_t len)
 {
 	Opaque::SetSize(len + 1);
 	length = len;
@@ -401,11 +401,11 @@ void NFSv3Path::SetSize(uint32 len)
 /////////////////////////////////////////////////////////////////////
 void NFSv3Path::Set(char* str)
 {
-	SetSize(static_cast<uint32>(strlen(str)));
+	SetSize(static_cast<uint32_t>(strlen(str)));
 	strcpy_s(path, (strlen(str) + 1), str);
 }
 
-typedef nfsstat3(NFS3Prog::* PPROC)(void);
+typedef NfsStat3(NFS3Prog::* PPROC)(void);
 
 /////////////////////////////////////////////////////////////////////
 NFS3Prog::NFS3Prog(unsigned int uid, unsigned int gid, bool enableLog)
@@ -434,7 +434,7 @@ int NFS3Prog::Process(IInputStream* pInStream, IOutputStream* pOutStream, Proces
 		&NFS3Prog::ProcedureCOMMIT
 	};
 
-	nfsstat3 stat = 0;
+	NfsStat3 stat = 0;
 
 	struct tm current;
 	time_t now;
@@ -581,18 +581,18 @@ int NFS3Prog::Process(IInputStream* pInStream, IOutputStream* pOutStream, Proces
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureNULL()
+NfsStat3 NFS3Prog::ProcedureNULL()
 {
 	PrintLog("NULL");
 	return NFS3_OK;
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureGETATTR()
+NfsStat3 NFS3Prog::ProcedureGETATTR()
 {
 	std::string path;
 	FAttr3 attributes;
-	nfsstat3 stat;
+	NfsStat3 stat;
 
 	PrintLog("GETATTR");
 	bool validHandle = GetPath(path);
@@ -622,13 +622,13 @@ nfsstat3 NFS3Prog::ProcedureGETATTR()
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureSETATTR()
+NfsStat3 NFS3Prog::ProcedureSETATTR()
 {
 	std::string path;
 	SAttr3 newAttributes;
 	SAttrGuard3 guard;
 	WccData objWcc;
-	nfsstat3 stat;
+	NfsStat3 stat;
 	int mode;
 	FILE* file;
 	HANDLE fileHandle;
@@ -718,13 +718,13 @@ nfsstat3 NFS3Prog::ProcedureSETATTR()
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureLOOKUP()
+NfsStat3 NFS3Prog::ProcedureLOOKUP()
 {
 	char* path;
 	NFSv3FileHandle object;
 	PostOpAttr fileAttributes;
 	PostOpAttr dirAttributes;
-	nfsstat3 stat;
+	NfsStat3 stat;
 
 	PrintLog("LOOKUP");
 
@@ -757,12 +757,12 @@ nfsstat3 NFS3Prog::ProcedureLOOKUP()
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureACCESS()
+NfsStat3 NFS3Prog::ProcedureACCESS()
 {
 	std::string path;
-	uint32 access;
+	uint32_t access;
 	PostOpAttr objAttributes;
-	nfsstat3 stat;
+	NfsStat3 stat;
 
 	PrintLog("ACCESS");
 	bool validHandle = GetPath(path);
@@ -789,7 +789,7 @@ nfsstat3 NFS3Prog::ProcedureACCESS()
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureREADLINK(void)
+NfsStat3 NFS3Prog::ProcedureREADLINK(void)
 {
 	PrintLog("READLINK");
 	std::string path;
@@ -798,7 +798,7 @@ nfsstat3 NFS3Prog::ProcedureREADLINK(void)
 	NFSv3Path data = NFSv3Path();
 
 	//opaque data;
-	nfsstat3 stat;
+	NfsStat3 stat;
 
 	HANDLE hFile;
 	REPARSE_DATA_BUFFER* lpOutBuffer;
@@ -903,15 +903,15 @@ nfsstat3 NFS3Prog::ProcedureREADLINK(void)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureREAD(void)
+NfsStat3 NFS3Prog::ProcedureREAD(void)
 {
 	std::string path;
-	offset3 offset;
-	count3 count;
+	Offset3 offset;
+	Count3 count;
 	PostOpAttr file_attributes;
 	bool eof;
 	Opaque data;
-	nfsstat3 stat;
+	NfsStat3 stat;
 	FILE* pFile;
 
 	PrintLog("READ");
@@ -927,7 +927,7 @@ nfsstat3 NFS3Prog::ProcedureREAD(void)
 
 		if (pFile != NULL) {
 			_fseeki64(pFile, offset, SEEK_SET);
-			count = static_cast<count3>(fread(data.contents, sizeof(char), count, pFile));
+			count = static_cast<Count3>(fread(data.contents, sizeof(char), count, pFile));
 			eof = fgetc(pFile) == EOF;
 			fclose(pFile);
 		}
@@ -961,16 +961,16 @@ nfsstat3 NFS3Prog::ProcedureREAD(void)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureWRITE(void)
+NfsStat3 NFS3Prog::ProcedureWRITE(void)
 {
 	std::string path;
-	offset3 offset;
-	count3 count;
-	stable_how stable;
+	Offset3 offset;
+	Count3 count;
+	StableHow stable;
 	Opaque data;
 	WccData file_wcc;
-	writeverf3 verf;
-	nfsstat3 stat;
+	WriteVerf3 verf;
+	NfsStat3 stat;
 	FILE* pFile;
 
 	PrintLog("WRITE");
@@ -1002,7 +1002,7 @@ nfsstat3 NFS3Prog::ProcedureWRITE(void)
 
 			if (pFile != NULL) {
 				_fseeki64(pFile, offset, SEEK_SET);
-				count = static_cast<count3>(fwrite(data.contents, sizeof(char), data.length, pFile));
+				count = static_cast<Count3>(fwrite(data.contents, sizeof(char), data.length, pFile));
 			}
 			else {
 				char buffer[BUFFER_SIZE];
@@ -1027,7 +1027,7 @@ nfsstat3 NFS3Prog::ProcedureWRITE(void)
 
 			if (pFile != NULL) {
 				_fseeki64(pFile, offset, SEEK_SET);
-				count = static_cast<count3>(fwrite(data.contents, sizeof(char), data.length, pFile));
+				count = static_cast<Count3>(fwrite(data.contents, sizeof(char), data.length, pFile));
 				fclose(pFile);
 			}
 			else {
@@ -1064,14 +1064,14 @@ nfsstat3 NFS3Prog::ProcedureWRITE(void)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureCREATE(void)
+NfsStat3 NFS3Prog::ProcedureCREATE(void)
 {
 	char* path;
 	CreateHow3 how;
 	PostOpFH3 obj;
 	PostOpAttr objAttributes;
 	WccData dir_wcc;
-	nfsstat3 stat;
+	NfsStat3 stat;
 	FILE* pFile;
 
 	PrintLog("CREATE");
@@ -1126,14 +1126,14 @@ nfsstat3 NFS3Prog::ProcedureCREATE(void)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureMKDIR(void)
+NfsStat3 NFS3Prog::ProcedureMKDIR(void)
 {
 	char* path;
 	SAttr3 attributes;
 	PostOpFH3 obj;
 	PostOpAttr objAttributes;
 	WccData dir_wcc;
-	nfsstat3 stat;
+	NfsStat3 stat;
 
 	PrintLog("MKDIR");
 
@@ -1182,7 +1182,7 @@ nfsstat3 NFS3Prog::ProcedureMKDIR(void)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureSYMLINK(void)
+NfsStat3 NFS3Prog::ProcedureSYMLINK(void)
 {
 	PrintLog("SYMLINK");
 
@@ -1190,7 +1190,7 @@ nfsstat3 NFS3Prog::ProcedureSYMLINK(void)
 	PostOpFH3 obj;
 	PostOpAttr objAttributes;
 	WccData dir_wcc;
-	nfsstat3 stat;
+	NfsStat3 stat;
 
 	DirOpArgs3 where;
 	SymlinkData3 symlink;
@@ -1261,7 +1261,7 @@ nfsstat3 NFS3Prog::ProcedureSYMLINK(void)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureMKNOD(void)
+NfsStat3 NFS3Prog::ProcedureMKNOD(void)
 {
 	//TODO
 	PrintLog("MKNOD");
@@ -1270,11 +1270,11 @@ nfsstat3 NFS3Prog::ProcedureMKNOD(void)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureREMOVE(void)
+NfsStat3 NFS3Prog::ProcedureREMOVE(void)
 {
 	char* path;
 	WccData dir_wcc;
-	nfsstat3 stat;
+	NfsStat3 stat;
 	unsigned long returnCode;
 
 	PrintLog("REMOVE");
@@ -1316,11 +1316,11 @@ nfsstat3 NFS3Prog::ProcedureREMOVE(void)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureRMDIR(void)
+NfsStat3 NFS3Prog::ProcedureRMDIR(void)
 {
 	char* path;
 	WccData dir_wcc;
-	nfsstat3 stat;
+	NfsStat3 stat;
 	unsigned long returnCode;
 
 	PrintLog("RMDIR");
@@ -1354,11 +1354,11 @@ nfsstat3 NFS3Prog::ProcedureRMDIR(void)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureRENAME(void)
+NfsStat3 NFS3Prog::ProcedureRENAME(void)
 {
 	char pathFrom[MAXPATHLEN], * pathTo;
 	WccData fromdir_wcc, todir_wcc;
-	nfsstat3 stat;
+	NfsStat3 stat;
 	unsigned long returnCode;
 
 	PrintLog("RENAME");
@@ -1426,14 +1426,14 @@ nfsstat3 NFS3Prog::ProcedureRENAME(void)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureLINK(void)
+NfsStat3 NFS3Prog::ProcedureLINK(void)
 {
 	PrintLog("LINK");
 	std::string path;
 	DirOpArgs3 link;
 	std::string dirName;
 	std::string fileName;
-	nfsstat3 stat;
+	NfsStat3 stat;
 	PostOpAttr objAttributes;
 	WccData dir_wcc;
 
@@ -1466,18 +1466,18 @@ nfsstat3 NFS3Prog::ProcedureLINK(void)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureREADDIR(void)
+NfsStat3 NFS3Prog::ProcedureREADDIR(void)
 {
 	std::string path;
-	cookie3 cookie;
-	cookieverf3 cookieverf;
-	count3 count;
+	Cookie3 cookie;
+	CookieVerf3 cookieverf;
+	Count3 count;
 	PostOpAttr dir_attributes;
-	fileid3 fileid;
+	FileId3 fileid;
 	NFSv3Filename name;
 	bool eof;
 	bool bFollows;
-	nfsstat3 stat;
+	NfsStat3 stat;
 	char filePath[MAXPATHLEN];
 	int nFound;
 	intptr_t handle;
@@ -1550,19 +1550,19 @@ nfsstat3 NFS3Prog::ProcedureREADDIR(void)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureREADDIRPLUS(void)
+NfsStat3 NFS3Prog::ProcedureREADDIRPLUS(void)
 {
 	std::string path;
-	cookie3 cookie;
-	cookieverf3 cookieverf;
-	count3 dircount, maxcount;
+	Cookie3 cookie;
+	CookieVerf3 cookieverf;
+	Count3 dircount, maxcount;
 	PostOpAttr dir_attributes;
-	fileid3 fileid;
+	FileId3 fileid;
 	NFSv3Filename name;
 	PostOpAttr name_attributes;
 	PostOpFH3 name_handle;
 	bool eof;
-	nfsstat3 stat;
+	NfsStat3 stat;
 	char filePath[MAXPATHLEN];
 	int nFound;
 	intptr_t handle;
@@ -1640,14 +1640,14 @@ nfsstat3 NFS3Prog::ProcedureREADDIRPLUS(void)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureFSSTAT(void)
+NfsStat3 NFS3Prog::ProcedureFSSTAT(void)
 {
 	std::string path;
 	PostOpAttr objAttributes;
-	size3 tbytes, fbytes, abytes, tfiles, ffiles, afiles;
-	uint32 invarsec;
+	Size3 tbytes, fbytes, abytes, tfiles, ffiles, afiles;
+	uint32_t invarsec;
 
-	nfsstat3 stat;
+	NfsStat3 stat;
 
 	PrintLog("FSSTAT");
 	bool validHandle = GetPath(path);
@@ -1687,15 +1687,15 @@ nfsstat3 NFS3Prog::ProcedureFSSTAT(void)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureFSINFO(void)
+NfsStat3 NFS3Prog::ProcedureFSINFO(void)
 {
 	std::string path;
 	PostOpAttr objAttributes;
-	uint32 rtmax, rtpref, rtmult, wtmax, wtpref, wtmult, dtpref;
-	size3 maxfilesize;
+	uint32_t rtmax, rtpref, rtmult, wtmax, wtpref, wtmult, dtpref;
+	Size3 maxfilesize;
 	NFSTime3 time_delta;
-	uint32 properties;
-	nfsstat3 stat;
+	uint32_t properties;
+	NfsStat3 stat;
 
 	PrintLog("FSINFO");
 	bool validHandle = GetPath(path);
@@ -1743,12 +1743,12 @@ nfsstat3 NFS3Prog::ProcedureFSINFO(void)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedurePATHCONF(void)
+NfsStat3 NFS3Prog::ProcedurePATHCONF(void)
 {
 	std::string path;
 	PostOpAttr objAttributes;
-	nfsstat3 stat;
-	uint32 linkmax, name_max;
+	NfsStat3 stat;
+	uint32_t linkmax, name_max;
 	bool no_trunc, chown_restricted, case_insensitive, case_preserving;
 
 	PrintLog("PATHCONF");
@@ -1788,16 +1788,16 @@ nfsstat3 NFS3Prog::ProcedurePATHCONF(void)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureCOMMIT(void)
+NfsStat3 NFS3Prog::ProcedureCOMMIT(void)
 {
 	std::string path;
 	int handleId;
-	offset3 offset;
-	count3 count;
+	Offset3 offset;
+	Count3 count;
 	WccData file_wcc;
-	nfsstat3 stat;
+	NfsStat3 stat;
 	NFSv3FileHandle file;
-	writeverf3 verf;
+	WriteVerf3 verf;
 
 	PrintLog("COMMIT");
 	Read(&file);
@@ -1845,7 +1845,7 @@ nfsstat3 NFS3Prog::ProcedureCOMMIT(void)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::ProcedureNOIMP(void)
+NfsStat3 NFS3Prog::ProcedureNOIMP(void)
 {
 	PrintLog("NOIMP");
 	m_result = PRC_NOTIMP;
@@ -1856,9 +1856,9 @@ nfsstat3 NFS3Prog::ProcedureNOIMP(void)
 /////////////////////////////////////////////////////////////////////
 void NFS3Prog::Read(bool* pBool)
 {
-	uint32 b;
+	uint32_t b;
 
-	if (m_inStream->Read(&b) < sizeof(uint32)) {
+	if (m_inStream->Read(&b) < sizeof(uint32_t)) {
 		throw __LINE__;
 	}
 
@@ -1866,17 +1866,17 @@ void NFS3Prog::Read(bool* pBool)
 }
 
 /////////////////////////////////////////////////////////////////////
-void NFS3Prog::Read(uint32* pUint32)
+void NFS3Prog::Read(uint32_t* pUint32)
 {
-	if (m_inStream->Read(pUint32) < sizeof(uint32)) {
+	if (m_inStream->Read(pUint32) < sizeof(uint32_t)) {
 		throw __LINE__;
 	}
 }
 
 /////////////////////////////////////////////////////////////////////
-void NFS3Prog::Read(uint64* pUint64)
+void NFS3Prog::Read(uint64_t* pUint64)
 {
-	if (m_inStream->Read8(pUint64) < sizeof(uint64)) {
+	if (m_inStream->Read8(pUint64) < sizeof(uint64_t)) {
 		throw __LINE__;
 	}
 }
@@ -1941,7 +1941,7 @@ void NFS3Prog::Read(DirOpArgs3* pDir)
 /////////////////////////////////////////////////////////////////////
 void NFS3Prog::Read(Opaque* pOpaque)
 {
-	uint32 len, byte;
+	uint32_t len, byte;
 
 	Read(&len);
 	pOpaque->SetSize(len);
@@ -1993,13 +1993,13 @@ void NFS3Prog::Write(bool* pBool)
 }
 
 /////////////////////////////////////////////////////////////////////
-void NFS3Prog::Write(uint32* pUint32)
+void NFS3Prog::Write(uint32_t* pUint32)
 {
 	m_outStream->Write(*pUint32);
 }
 
 /////////////////////////////////////////////////////////////////////
-void NFS3Prog::Write(uint64* pUint64)
+void NFS3Prog::Write(uint64_t* pUint64)
 {
 	m_outStream->Write8(*pUint64);
 }
@@ -2025,7 +2025,7 @@ void NFS3Prog::Write(FAttr3* pAttr)
 /////////////////////////////////////////////////////////////////////
 void NFS3Prog::Write(Opaque* pOpaque)
 {
-	uint32 len, byte;
+	uint32_t len, byte;
 
 	Write(&pOpaque->length);
 	m_outStream->Write(pOpaque->contents, pOpaque->length);
@@ -2147,7 +2147,7 @@ char* NFS3Prog::GetFullPath(std::string& dirName, std::string& fileName)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::CheckFile(const char* fullPath)
+NfsStat3 NFS3Prog::CheckFile(const char* fullPath)
 {
 	if (fullPath == NULL) {
 		return NFS3ERR_STALE;
@@ -2162,7 +2162,7 @@ nfsstat3 NFS3Prog::CheckFile(const char* fullPath)
 }
 
 /////////////////////////////////////////////////////////////////////
-nfsstat3 NFS3Prog::CheckFile(const char* directory, const char* fullPath)
+NfsStat3 NFS3Prog::CheckFile(const char* directory, const char* fullPath)
 {
 	// FileExists will not work for the root of a drive, e.g. \\?\D:\, therefore check if it is a drive root with GetDriveType
 	if (directory == NULL || (!FileExists(directory) && GetDriveType(directory) < 2) || fullPath == NULL) {

@@ -8,27 +8,31 @@
 #define ICENFSD_RPCSERVER_H
 
 #include "SocketListener.h"
-#include "Socket.h"
-#include "RPCProg.h"
-#include <windows.h>
+#include <memory>
+#include <mutex>
+#include <map>
 
-#define PROG_NUM 10
+class RPCProg;
+class Socket;
 
 class RPCServer : public ISocketListener
 {
 public:
-    RPCServer();
-    virtual ~RPCServer();
+	using RPCProgPtr = std::unique_ptr<RPCProg>;
 
-    void Set(int progNumber, RPCProg *progHandle);
-    void EnableLog(bool enableLog);
-    void SocketReceived(Socket* socket);
+	RPCServer() = default;
+	virtual ~RPCServer();
+
+	void Set(uint32_t progNumber, RPCProgPtr progHandle);
+	RPCProg& Get(uint32_t progNumber);
+	void EnableLog(bool enableLog);
+	void SocketReceived(Socket* socket);
 
 protected:
-    RPCProg* m_progTable[PROG_NUM];
-    HANDLE m_mutex;
+	std::map<uint32_t, RPCProgPtr> m_progTable;
+	std::mutex m_lock;
 
-    int Process(int type, IInputStream* inStream, IOutputStream* outStream, char* remoteAddr);
+	int Process(Socket* socket);
 };
 
 #endif // ICENFSD_RPCSERVER_H

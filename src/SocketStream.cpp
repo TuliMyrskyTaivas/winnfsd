@@ -5,6 +5,7 @@
 /////////////////////////////////////////////////////////////////////
 
 #include "SocketStream.h"
+#include <sys/types.h>
 #include <cstring>
 #include <cstdio>
 
@@ -12,191 +13,189 @@
 
 /////////////////////////////////////////////////////////////////////
 SocketStream::SocketStream()
-    : m_inBuffer(new unsigned char[MAXDATA])
-    , m_outBuffer(new unsigned char[MAXDATA])
-    , m_inBufferIndex(0)
-    , m_inBufferSize(0)
-    , m_outBufferIndex(0)
-    , m_outBufferSize(0)
+	: m_inBuffer(new unsigned char[MAXDATA])
+	, m_outBuffer(new unsigned char[MAXDATA])
+	, m_inBufferSize(0)
+	, m_outBufferSize(0)
+	, m_inBufferIndex(0)
+	, m_outBufferIndex(0)
 {}
 
 /////////////////////////////////////////////////////////////////////
 SocketStream::~SocketStream()
 {
-    delete[] m_inBuffer;
-    delete[] m_outBuffer;
+	delete[] m_inBuffer;
+	delete[] m_outBuffer;
 }
 
 /////////////////////////////////////////////////////////////////////
 unsigned char* SocketStream::GetInput() noexcept
 {
-    return m_inBuffer;
+	return m_inBuffer;
 }
 
 /////////////////////////////////////////////////////////////////////
-void SocketStream::SetInputSize(unsigned int size)
+void SocketStream::SetInputSize(size_t size)
 {
-    m_inBufferIndex = 0;  //seek to the beginning of the input buffer
-    m_inBufferSize = size;
+	m_inBufferIndex = 0;  //seek to the beginning of the input buffer
+	m_inBufferSize = size;
 }
 
 /////////////////////////////////////////////////////////////////////
 unsigned char* SocketStream::GetOutput() noexcept
 {
-    return m_outBuffer;  //output buffer
+	return m_outBuffer;  //output buffer
 }
 
 /////////////////////////////////////////////////////////////////////
-unsigned int SocketStream::GetOutputSize() const noexcept
+size_t SocketStream::GetOutputSize() const noexcept
 {
-    return m_outBufferSize;  //number of bytes of data in the output buffer
+	return m_outBufferSize;  //number of bytes of data in the output buffer
 }
 
 /////////////////////////////////////////////////////////////////////
-unsigned int SocketStream::GetBufferSize() const noexcept
+size_t SocketStream::GetBufferSize() const noexcept
 {
-    return MAXDATA;  //size of input/output buffer
+	return MAXDATA;  //size of input/output buffer
 }
 
 /////////////////////////////////////////////////////////////////////
-unsigned int SocketStream::Read(void *data, unsigned int size)
+size_t SocketStream::Read(void* data, size_t size)
 {
-    if (size > m_inBufferSize - m_inBufferIndex) { //over the number of bytes of data in the input buffer
-        size = m_inBufferSize - m_inBufferIndex;
-    }
+	if (size > m_inBufferSize - m_inBufferIndex) { //over the number of bytes of data in the input buffer
+		size = m_inBufferSize - m_inBufferIndex;
+	}
 
-    memcpy(data, m_inBuffer + m_inBufferIndex, size);
-    m_inBufferIndex += size;
+	memcpy(data, m_inBuffer + m_inBufferIndex, size);
+	m_inBufferIndex += static_cast<off_t>(size);
 
-    return size;
+	return size;
 }
 
 /////////////////////////////////////////////////////////////////////
-unsigned int SocketStream::Read(unsigned long* value)
+size_t SocketStream::Read(uint32_t* value)
 {
-    unsigned char buffer[sizeof(unsigned long)];
+	constexpr size_t bufferLength = sizeof(uint32_t);
+	unsigned char buffer[bufferLength];
 
-    unsigned char* p = reinterpret_cast<unsigned char*>(value);
-    const unsigned int n = Read(buffer, sizeof(unsigned long));
+	unsigned char* p = reinterpret_cast<unsigned char*>(value);
+	const auto n = Read(buffer, bufferLength);
 
-    for (unsigned int i = 0; i < n; i++) // reverse byte order
-    { 
-        p[sizeof(unsigned long) - 1 - i] = buffer[i];
-    }
+	for (auto i = 0; i < n; i++) // reverse byte order
+	{
+		p[bufferLength - 1 - i] = buffer[i];
+	}
 
-    return n;
+	return n;
 }
 
 /////////////////////////////////////////////////////////////////////
-unsigned int SocketStream::Read8(unsigned __int64 *value)
+size_t SocketStream::Read8(uint64_t* value)
 {
-    unsigned int i, n;
-    unsigned char *p, buffer[sizeof(unsigned __int64)];
+	constexpr size_t bufferLength = sizeof(uint32_t);
+	unsigned char buffer[bufferLength];
 
-    p = (unsigned char *)value;
-    n = Read(buffer, sizeof(unsigned __int64));
+	unsigned char* p = (unsigned char*)value;
+	const auto n = Read(buffer, bufferLength);
 
-    for (i = 0; i < n; i++) { //reverse byte order
-        p[sizeof(unsigned __int64)-1 - i] = buffer[i];
-    }
+	for (auto i = 0; i < n; i++) { //reverse byte order
+		p[bufferLength - 1 - i] = buffer[i];
+	}
 
-    return n;
+	return n;
 }
 
 /////////////////////////////////////////////////////////////////////
-unsigned int SocketStream::Skip(unsigned int size)
+size_t SocketStream::Skip(size_t size)
 {
-    if (size > m_inBufferSize - m_inBufferIndex) //over the number of bytes of data in the input buffer
-    {
-        size = m_inBufferSize - m_inBufferIndex;
-    }
+	if (size > m_inBufferSize - m_inBufferIndex) //over the number of bytes of data in the input buffer
+	{
+		size = m_inBufferSize - m_inBufferIndex;
+	}
 
-    m_inBufferIndex += size;
-
-    return size;
+	m_inBufferIndex += static_cast<off_t>(size);
+	return size;
 }
 
 /////////////////////////////////////////////////////////////////////
-unsigned int SocketStream::GetSize() const noexcept
+size_t SocketStream::GetSize() const noexcept
 {
-    return m_inBufferSize - m_inBufferIndex;  //number of bytes of rest data in the input buffer
+	return m_inBufferSize - m_inBufferIndex;  //number of bytes of rest data in the input buffer
 }
 
 /////////////////////////////////////////////////////////////////////
-void SocketStream::Write(void *data, unsigned int size)
+void SocketStream::Write(void* data, size_t size)
 {
-    if (m_outBufferIndex + size > MAXDATA) //over the size of output buffer
-    {
-        size = MAXDATA - m_outBufferIndex;
-    }
+	if (m_outBufferIndex + size > MAXDATA) //over the size of output buffer
+	{
+		size = MAXDATA - m_outBufferIndex;
+	}
 
-    memcpy(m_outBuffer + m_outBufferIndex, data, size);
-    m_outBufferIndex += size;
+	memcpy(m_outBuffer + m_outBufferIndex, data, size);
+	m_outBufferIndex += static_cast<off_t>(size);
 
-    if (m_outBufferIndex > m_outBufferSize)
-    {
-        m_outBufferSize = m_outBufferIndex;
-    }
-
+	if (m_outBufferIndex > m_outBufferSize)
+	{
+		m_outBufferSize = m_outBufferIndex;
+	}
 }
 
 /////////////////////////////////////////////////////////////////////
-void SocketStream::Write(unsigned long value)
+void SocketStream::Write(uint32_t value)
 {
-    int i;
-    unsigned char *p, buffer[sizeof(unsigned long)];
+	constexpr int32_t bufferLength = sizeof(uint32_t);
+	unsigned char buffer[bufferLength];
+	unsigned char* p = (unsigned char*)&value;
 
-    p = (unsigned char *)&value;
+	for (int32_t i = bufferLength - 1; i >= 0; i--) //reverse byte order
+	{
+		buffer[i] = p[bufferLength - 1 - i];
+	}
 
-    for (i = sizeof(unsigned long)-1; i >= 0; i--) //reverse byte order
-    {
-        buffer[i] = p[sizeof(unsigned long)-1 - i];
-    }
-
-    Write(buffer, sizeof(unsigned long));
+	Write(buffer, bufferLength);
 }
 
 /////////////////////////////////////////////////////////////////////
-void SocketStream::Write8(unsigned __int64 value)
+void SocketStream::Write8(uint64_t value)
 {
-    int i;
-    unsigned char *p, buffer[sizeof(unsigned __int64)];
+	constexpr int32_t bufferLength = sizeof(uint64_t);
+	unsigned char buffer[bufferLength];
+	unsigned char* p = (unsigned char*)&value;
 
-    p = (unsigned char *)&value;
+	for (int32_t i = bufferLength - 1; i >= 0; i--) //reverse byte order
+	{
+		buffer[i] = p[bufferLength - 1 - i];
+	}
 
-    for (i = sizeof(unsigned __int64)-1; i >= 0; i--) //reverse byte order
-    {
-        buffer[i] = p[sizeof(unsigned __int64)-1 - i];
-    }
-
-    Write(buffer, sizeof(unsigned __int64));
+	Write(buffer, bufferLength);
 }
 
 /////////////////////////////////////////////////////////////////////
-void SocketStream::Seek(int offset, int from)
+void SocketStream::Seek(off_t offset, int from)
 {
-    if (from == SEEK_SET)
-    {
-        m_outBufferIndex = offset;
-    }
-    else if (from == SEEK_CUR)
-    {
-        m_outBufferIndex += offset;
-    }
-    else if (from == SEEK_END)
-    {
-        m_outBufferIndex = m_outBufferSize + offset;
-    }
+	if (from == SEEK_SET)
+	{
+		m_outBufferIndex = offset;
+	}
+	else if (from == SEEK_CUR)
+	{
+		m_outBufferIndex += offset;
+	}
+	else if (from == SEEK_END)
+	{
+		m_outBufferIndex = static_cast<off_t>(m_outBufferSize) + offset;
+	}
 }
 
 /////////////////////////////////////////////////////////////////////
-int SocketStream::GetPosition() const noexcept
+size_t SocketStream::GetPosition() const noexcept
 {
-    return m_outBufferIndex;
+	return m_outBufferIndex;
 }
 
 /////////////////////////////////////////////////////////////////////
 void SocketStream::Reset()
 {
-    m_outBufferIndex = m_outBufferSize = 0;  //clear output buffer
+	m_outBufferIndex = 0;
+	m_outBufferSize = 0;  //clear output buffer
 }
