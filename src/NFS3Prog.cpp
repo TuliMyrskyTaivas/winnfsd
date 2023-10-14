@@ -640,8 +640,8 @@ void Write(IOutputStream& outStream, const Opaque& value)
 	const uint32_t len = value.length & 3;
 	if (len != 0)
 	{
-		const uint32_t byte = 0;
-		outStream.Write(byte, 4 - len);
+		uint32_t byte = 0;
+		outStream.Write(&byte, 4 - (size_t)len);
 	}
 }
 

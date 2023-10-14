@@ -12,13 +12,13 @@
 #include "ServerSocket.h"
 #include "DatagramSocket.h"
 #include "Settings.h"
+#include <iostream>
 #include <cstdlib>
 #include <memory>
 #include <vector>
 
 #include <boost/log/trivial.hpp>
 
-#define SOCKET_NUM 3
 enum
 {
 	PORTMAP_PORT = 111,
@@ -65,9 +65,6 @@ try
 	const Settings settings(argc, argv);
 	const WinSockHolder winsock{};
 
-	DatagramSocket DatagramSockets[SOCKET_NUM];
-	ServerSocket ServerSockets[SOCKET_NUM];
-
 	auto rpcServer = std::make_unique<RPCServer>();
 	auto portMapper = std::make_unique<PortmapProg>();
 	auto nfsServer = std::make_unique<NFSProg>();
@@ -86,35 +83,18 @@ try
 	rpcServer->Set(PROG_NFS, std::move(nfsServer));       //program for nfs
 	rpcServer->Set(PROG_MOUNT, std::move(mountServer));   //program for mount
 
-	for (int i = 0; i < SOCKET_NUM; i++)
-	{
-		DatagramSockets[i].SetListener(rpcServer.get());
-		ServerSockets[i].SetListener(rpcServer.get());
-	}
+	ServerSocket rpcTcpSocket(settings.GetRpcEndpoint(), 3, rpcServer.get());
+	DatagramSocket rpcUdpSocket(settings.GetRpcEndpoint(), rpcServer.get());
+	BOOST_LOG_TRIVIAL(debug) << "Portmap daemon started at " << rpcTcpSocket.GetAddress();
+	ServerSocket nfsTcpSocket(settings.GetNfsEndpoint(), 10, rpcServer.get());
+	DatagramSocket nfsUdpSocket(settings.GetNfsEndpoint(), rpcServer.get());
+	BOOST_LOG_TRIVIAL(debug) << "NFS daemon started at " << nfsTcpSocket.GetAddress();
+	ServerSocket mountTcpSocket(settings.GetMountEndpoint(), 3, rpcServer.get());
+	DatagramSocket mountUdpSocket(settings.GetMountEndpoint(), rpcServer.get());
+	BOOST_LOG_TRIVIAL(debug) << "Mount daemon started at " << mountTcpSocket.GetAddress();
 
-	if (!ServerSockets[0].Open(PORTMAP_PORT, 3) || !DatagramSockets[0].Open(PORTMAP_PORT))
-	{
-		throw std::runtime_error("portmap daemon failed to start");
-	}
-	BOOST_LOG_TRIVIAL(debug) << "Portmap daemon started";
-
-	if (!ServerSockets[1].Open(NFS_PORT, 10) || !DatagramSockets[1].Open(NFS_PORT))
-	{
-		throw std::runtime_error("NFS daemon failed to start");
-	}
-	BOOST_LOG_TRIVIAL(debug) << "NFS daemon started";
-
-	if (!ServerSockets[2].Open(MOUNT_PORT, 3) || !DatagramSockets[2].Open(MOUNT_PORT))
-	{
-		throw std::runtime_error("Mount daemon failed to start");
-	}
-	BOOST_LOG_TRIVIAL(debug) << "Mount daemon started\n";
-
-	for (int i = 0; i < SOCKET_NUM; i++)
-	{
-		DatagramSockets[i].Close();
-		ServerSockets[i].Close();
-	}
+	std::string data;
+	std::cin >> data;
 
 	return EXIT_SUCCESS;
 }

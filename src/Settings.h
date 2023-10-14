@@ -25,7 +25,9 @@ public:
 	~Settings();
 
 	const Exports& GetExports() const noexcept;
-	const sockaddr_in& GetEndpoint() const noexcept;
+	const sockaddr_in& GetRpcEndpoint() const noexcept;
+	const sockaddr_in& GetNfsEndpoint() const noexcept;
+	const sockaddr_in& GetMountEndpoint() const noexcept;
 	unsigned int GetUid() const noexcept;
 	unsigned int GetGid() const noexcept;
 

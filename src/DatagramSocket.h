@@ -7,7 +7,9 @@
 #ifndef ICENFSD_DATAGRAMSOCKET_H
 #define ICENFSD_DATAGRAMSOCKET_H
 
-#include <winsock.h>
+#include <WinSock2.h>
+#include <cstdint>
+#include <string>
 
 class Socket;
 class ISocketListener;
@@ -15,20 +17,18 @@ class ISocketListener;
 class DatagramSocket
 {
 public:
-    DatagramSocket();
-    ~DatagramSocket();
+	DatagramSocket(const sockaddr_in& endpoint, ISocketListener* listener);
+	~DatagramSocket();
 
-    void SetListener(ISocketListener* listener);
-    bool Open(int port);
-    void Close();
-    int GetPort() const noexcept;
+	const std::string& GetAddress() const noexcept;
+	void Close();
 
 private:
-    int m_port;
-    SOCKET m_socket;
-    Socket *m_pSocket;
-    bool m_closed;
-    ISocketListener* m_listener;
+	std::string m_address;
+	SOCKET m_socket;
+	Socket* m_pSocket;
+	bool m_closed;
+	ISocketListener* m_listener;
 };
 
 #endif // ICENFSD_DATAGRAMSOCKET_H

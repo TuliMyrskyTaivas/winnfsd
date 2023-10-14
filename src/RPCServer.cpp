@@ -127,9 +127,9 @@ int RPCServer::Process(Socket* socket)
 	BOOST_LOG_TRIVIAL(debug) << "RPC from " << remoteAddr
 		<< ": xid:" << std::hex << header.xid
 		<< ", msg:" << std::hex << header.msg
-		<< ", rpcVers:" << header.rpcvers
-		<< ", prog: " << header.prog
-		<< ", progVers: " << header.vers
+		<< ", rpcVers:" << std::dec << header.rpcvers
+		<< ", prog: " << std::dec << header.prog
+		<< ", progVers: " << std::dec << header.vers
 		<< ", proc: " << header.proc;
 
 	if (inStream.Read(&header.verf.length) < sizeof(header.verf.length))

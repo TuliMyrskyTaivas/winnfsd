@@ -4,12 +4,11 @@
 /// summary: base class for the network socket
 /////////////////////////////////////////////////////////////////////
 
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include "Socket.h"
 #include <process.h>
 #include <stdexcept>
 #include <iostream>
-
-char* g_sInAddr;
 
 /////////////////////////////////////////////////////////////////////
 static unsigned int __stdcall ThreadProc(void* parameter)

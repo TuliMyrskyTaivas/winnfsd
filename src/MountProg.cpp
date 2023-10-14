@@ -9,6 +9,8 @@
 #include "InputStream.h"
 #include "OutputStream.h"
 
+#include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string/replace.hpp>
 #include <boost/algorithm/string/trim.hpp>
 #include <boost/log/trivial.hpp>
 
@@ -113,7 +115,7 @@ int MountProg::ProcedureMNT(IInputStream& inStream, IOutputStream& outStream, RP
 /////////////////////////////////////////////////////////////////////
 int MountProg::ProcedureUMNT(IInputStream& inStream, IOutputStream&, RPCParam& param) noexcept
 {
-	BOOST_LOG_TRIVIAL(debug) << "MOUNT: MNT command, version=" << param.version << ", from " << param.remoteAddr;
+	BOOST_LOG_TRIVIAL(debug) << "MOUNT: UMNT command, version=" << param.version << ", from " << param.remoteAddr;
 	const auto path = GetPath(inStream);
 
 	auto client = std::find(m_clients.begin(), m_clients.end(), param.remoteAddr);
@@ -173,97 +175,54 @@ int MountProg::ProcedureNOIMP(IInputStream&, IOutputStream&, RPCParam&) noexcept
 /////////////////////////////////////////////////////////////////////
 std::string MountProg::GetPath(IInputStream& inStream)
 {
-	uint32_t i;
-	static char finalPath[MAXPATHLEN + 1];
 	bool foundPath = false;
+	std::string finalPath;
 
+	// Read size of path
 	uint32_t pathSize = 0;
 	inStream.Read(&pathSize);
-
 	if (pathSize > MAXPATHLEN)
 	{
 		pathSize = MAXPATHLEN;
 	}
 
-	using it_type = std::map<std::string, std::string>::iterator;
-	char path[MAXPATHLEN + 1];
-	inStream.Read(path, pathSize);
-	path[pathSize] = '\0';
+	// Read path
+	char pathBuf[MAXPATHLEN + 1];
+	inStream.Read(pathBuf, pathSize);
+	pathBuf[pathSize] = '\0';
 
-	// TODO: this whole method is quite ugly and ripe for refactoring
 	// strip slashes
-	std::string pathTemp(path);
-	pathTemp.erase(pathTemp.find_last_not_of("/\\") + 1);
-	std::copy(pathTemp.begin(), pathTemp.end(), path);
-	path[pathTemp.size()] = '\0';
+	std::string path(pathBuf);
+	boost::algorithm::trim_left_if(path, boost::is_any_of("/\\"));
 
-	for (it_type iterator = m_pathMap.begin(); iterator != m_pathMap.end(); iterator++)
+	for (const auto& mappedPath : m_pathMap)
 	{
-		// strip slashes
-		std::string pathAliasTemp(iterator->first.c_str());
-		pathAliasTemp.erase(pathAliasTemp.find_last_not_of("/\\") + 1);
-		char* pathAlias = const_cast<char*>(pathAliasTemp.c_str());
+		// strip slashes from alias
+		std::string alias = boost::trim_left_copy_if(mappedPath.first, boost::is_any_of("/\\"));
 
-		// strip slashes
-		std::string windowsPathTemp(iterator->second.c_str());
+		// strip slashes from read windows patj
+		std::string windowsPath = mappedPath.second;
 		// if it is a drive letter, e.g. D:\ keep the slash
-		if (windowsPathTemp.substr(windowsPathTemp.size() - 2) != ":\\")
+		if (windowsPath.substr(windowsPath.size() - 2) != ":\\")
 		{
-			windowsPathTemp.erase(windowsPathTemp.find_last_not_of("/\\") + 1);
+			windowsPath.erase(windowsPath.find_last_not_of("/\\") + 1);
 		}
-		char* windowsPath = const_cast<char*>(windowsPathTemp.c_str());
 
-		size_t aliasPathSize = strlen(pathAlias);
-		size_t windowsPathSize = strlen(windowsPath);
-		size_t requestedPathSize = pathTemp.size();
-
-		if ((requestedPathSize > aliasPathSize) && (strncmp(path, pathAlias, aliasPathSize) == 0))
+		if (boost::algorithm::starts_with(path, alias))
 		{
 			foundPath = true;
 			//The requested path starts with the alias. Let's replace the alias with the real path
-			strncpy_s(finalPath, MAXPATHLEN, windowsPath, windowsPathSize);
-			strncpy_s(finalPath + windowsPathSize, MAXPATHLEN - windowsPathSize, (path + aliasPathSize), requestedPathSize - aliasPathSize);
-			finalPath[windowsPathSize + requestedPathSize - aliasPathSize] = '\0';
-
-			for (i = 0; i < requestedPathSize - aliasPathSize; i++)
-			{
-				//transform path to Windows format
-				if (finalPath[windowsPathSize + i] == '/') {
-					finalPath[windowsPathSize + i] = '\\';
-				}
-			}
-		}
-		else if ((requestedPathSize == aliasPathSize) && (strncmp(path, pathAlias, aliasPathSize) == 0))
-		{
-			foundPath = true;
-			//The requested path IS the alias
-			strncpy_s(finalPath, MAXPATHLEN, windowsPath, windowsPathSize);
-			finalPath[windowsPathSize] = '\0';
-		}
-
-		if (foundPath == true)
-		{
+			finalPath = windowsPath + path.substr(alias.size());
+			boost::algorithm::replace_all(finalPath, "/", "\\");
 			break;
 		}
-	}
-
-	if (foundPath != true)
-	{
-		//The requested path does not start with the alias, let's treat it normally.
-		strncpy_s(finalPath, MAXPATHLEN, path, pathSize);
-		//transform mount path to Windows format. /d/work => d:\work
-		finalPath[0] = finalPath[1];
-		finalPath[1] = ':';
-
-		for (i = 2; i < pathSize; i++)
+		else if (path == alias)
 		{
-			if (finalPath[i] == '/')
-			{
-				finalPath[i] = '\\';
-			}
+			//The requested path IS the alias
+			foundPath = true;
+			finalPath = windowsPath;
+			break;
 		}
-
-		finalPath[pathSize] = '\0';
 	}
 
 	BOOST_LOG_TRIVIAL(debug) << "MOUNT: local requested path: " << finalPath;
@@ -325,7 +284,7 @@ std::string MountProg::FormatPath(const std::string& path, PathFormat format) co
 	}
 	else if (format == FORMAT_PATHALIAS)
 	{
-		if (path[1] == ':' && isalpha(path[0]))
+		if (result[1] == ':' && isalpha(result[0]))
 		{
 			//transform Windows format to mount path d:\work => /d/work
 			result[1] = result[0];
@@ -338,7 +297,7 @@ std::string MountProg::FormatPath(const std::string& path, PathFormat format) co
 				}
 			}
 		}
-		else if (path[0] != '/') //check path alias format
+		else if (result[0] != '/') //check path alias format
 		{
 			throw std::runtime_error("Path alias format is incorrect. Please use a path like /exports");
 		}

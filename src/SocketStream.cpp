@@ -92,7 +92,7 @@ size_t SocketStream::Read(uint32_t* value)
 /////////////////////////////////////////////////////////////////////
 size_t SocketStream::Read8(uint64_t* value)
 {
-	constexpr size_t bufferLength = sizeof(uint32_t);
+	constexpr size_t bufferLength = sizeof(uint64_t);
 	unsigned char buffer[bufferLength];
 
 	unsigned char* p = (unsigned char*)value;

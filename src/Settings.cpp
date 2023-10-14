@@ -12,18 +12,28 @@
 
 #include <boost/log/utility/setup/common_attributes.hpp>
 #include <boost/log/utility/setup/console.hpp>
+#include <boost/algorithm/string/trim.hpp>
 #include <boost/program_options.hpp>
 #include <boost/log/expressions.hpp>
 #include <boost/log/attributes.hpp>
 #include <boost/log/trivial.hpp>
 #include <boost/log/core.hpp>
 
+enum class Port : unsigned int
+{
+	Portmap = 111,
+	Mount = 1058,
+	Nfs = 2049
+};
+
 /////////////////////////////////////////////////////////////////////
 struct SettingsData
 {
 	unsigned int uid = 0;
 	unsigned int gid = 0;
-	sockaddr_in endpoint{};
+	sockaddr_in rpcEndpoint{};
+	sockaddr_in nfsEndpoint{};
+	sockaddr_in mountEndpoint{};
 	Exports exports{};
 };
 
@@ -52,7 +62,8 @@ Exports ParseExportsFile(const std::string& exportsPath)
 		auto alias = line.substr(delimiter + 1);
 
 		// clean path, trim spaces and slashes (except drive letter)
-		path.erase(path.find_last_not_of(" ") + 1);
+		boost::algorithm::trim(alias);
+		boost::algorithm::trim(path);
 		if (path.substr(path.size() - 2) != ":\\")
 		{
 			path.erase(path.find_last_not_of("/\\ ") + 1);
@@ -89,18 +100,20 @@ Settings::Settings(int argc, char* argv[])
 {
 	bool verboseMode = false;
 	unsigned int uid = 0, gid = 0;
-	unsigned int port = 0;
+	unsigned int nfsPort = 0, rpcPort = 0, mountPort = 0;
 	std::string address, exports;
 
 	namespace po = boost::program_options;
 	po::options_description cmdLine("Available options");
 	cmdLine.add_options()
-		("address,a", po::value<std::string>(&address)->default_value("127.0.0.1"), "IPv4 address to listen on")
-		("port,p", po::value<unsigned int>(&port), "port to listen on (required)")
+		("address,a", po::value<std::string>(&address)->default_value("0.0.0.0"), "IPv4 address to listen on")
 		("exports,e", po::value<std::string>(&exports), "path to exports file")
-		("uid,u", po::value<unsigned int>(&uid), "user ID")
-		("uid,g", po::value<unsigned int>(&gid), "group ID")
+		("uid,u", po::value<unsigned>(&uid), "user ID")
+		("uid,g", po::value<unsigned>(&gid), "group ID")
 		("verbose,v", po::bool_switch(&verboseMode), "enable verbose logging")
+		("nfs-port", po::value<unsigned>(&nfsPort)->default_value((unsigned)Port::Nfs), "port for NFS service")
+		("portmap-port", po::value<unsigned>(&rpcPort)->default_value((unsigned)Port::Portmap), "port for Portmap service")
+		("mount-port", po::value<unsigned>(&mountPort)->default_value((unsigned)Port::Mount), "port for Mount service")
 		("help,h", "show this message");
 
 	po::variables_map map;
@@ -135,7 +148,9 @@ Settings::Settings(int argc, char* argv[])
 	{
 		m_data->exports = std::move(ParseExportsFile(exports));
 	}
-	m_data->endpoint = BuildEndpoint(address, port);
+	m_data->rpcEndpoint = BuildEndpoint(address, rpcPort);
+	m_data->nfsEndpoint = BuildEndpoint(address, nfsPort);
+	m_data->mountEndpoint = BuildEndpoint(address, mountPort);
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -149,9 +164,21 @@ const Exports& Settings::GetExports() const noexcept
 }
 
 /////////////////////////////////////////////////////////////////////
-const sockaddr_in& Settings::GetEndpoint() const noexcept
+const sockaddr_in& Settings::GetNfsEndpoint() const noexcept
 {
-	return m_data->endpoint;
+	return m_data->nfsEndpoint;
+}
+
+/////////////////////////////////////////////////////////////////////
+const sockaddr_in& Settings::GetRpcEndpoint() const noexcept
+{
+	return m_data->rpcEndpoint;
+}
+
+/////////////////////////////////////////////////////////////////////
+const sockaddr_in& Settings::GetMountEndpoint() const noexcept
+{
+	return m_data->mountEndpoint;
 }
 
 /////////////////////////////////////////////////////////////////////

@@ -10,26 +10,29 @@
 #include "SocketListener.h"
 #include "Socket.h"
 #include <winsock.h>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include <vector>
+#include <thread>
 
 class ServerSocket
 {
 public:
-    ServerSocket();
-    ~ServerSocket();
+	ServerSocket(const sockaddr_in& endpoint, int maxClients, ISocketListener* listener);
+	~ServerSocket();
 
-    void SetListener(ISocketListener *listener);
-    bool Open(int port, int maxNum);
-    void Close();
-    int GetPort() const noexcept;
-    void Run();
+	const std::string& GetAddress() const noexcept;
+	void Close();
+	void Run();
 
 private:
-    int m_port, m_maxNum;
-    bool m_closed;
-    SOCKET m_serverSocket;
-    HANDLE m_thread;
-    ISocketListener *m_listener;
-    Socket **m_sockets;
+	bool m_closed;
+	std::string m_address;
+	SOCKET m_serverSocket;
+	ISocketListener* m_listener;
+	std::thread m_thread;
+	std::vector<std::unique_ptr<Socket>> m_sockets;
 };
 
 #endif // ICENFSD_SERVERSOCKET_H
