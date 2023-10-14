@@ -8,6 +8,7 @@
 #define ICENFSD_MOUNTPROG_H
 
 #include "RPCProg.h"
+#include <vector>
 #include <string>
 #include <map>
 
@@ -23,38 +24,27 @@ enum PathFormat
 class MountProg : public RPCProg
 {
 public:
-	MountProg();
-	virtual ~MountProg();
+	virtual ~MountProg() = default;
 
-	bool SetPathFile(const char* file);
-	void Export(const char* path, const char* pathAlias);
-	bool Refresh();
-	char* GetClientAddr(int index) const;
-	int GetMountNumber() const noexcept;
-	int Process(IInputStream* inStream, IOutputStream* outStream, ProcessParam* param);
+	void Export(const std::string& path, const std::string& alias);
+	int Process(IInputStream& inStream, IOutputStream& outStream, RPCParam& param) override;
 
 protected:
-	int m_mountNum;
 	std::string m_pathFile;
 	std::map<std::string, std::string> m_pathMap;
-	char* m_clientAddr[MOUNT_NUM_MAX];
-	IInputStream* m_inStream;
-	IOutputStream* m_outStream;
+	std::vector<std::string> m_clients;
 
-	int ProcedureNULL() noexcept;
-	int ProcedureMNT() noexcept;
-	int ProcedureUMNT() noexcept;
-	int ProcedureUMNTALL() noexcept;
-	int ProcedureEXPORT() noexcept;
-	int ProcedureNOIMP() noexcept;
+	int ProcedureNULL(IInputStream& inStream, IOutputStream& outStream, RPCParam& param) noexcept;
+	int ProcedureMNT(IInputStream& inStream, IOutputStream& outStream, RPCParam& param) noexcept;
+	int ProcedureUMNT(IInputStream& inStream, IOutputStream& outStream, RPCParam& param) noexcept;
+	int ProcedureUMNTALL(IInputStream& inStream, IOutputStream& outStream, RPCParam& param) noexcept;
+	int ProcedureEXPORT(IInputStream& inStream, IOutputStream& outStream, RPCParam& param) noexcept;
+	int ProcedureNOIMP(IInputStream& inStream, IOutputStream& outStream, RPCParam& param) noexcept;
 
-	std::string FormatPath(const char* path, PathFormat format) const;
-	void ReadPathsFromFile();
+	std::string FormatPath(const std::string& path, PathFormat format) const;
 
 private:
-	ProcessParam* m_param;
-
-	bool GetPath(char** returnPath);
+	std::string GetPath(IInputStream& inStreams);
 	char* GetPath(int& pathNumber);
 };
 

@@ -18,9 +18,12 @@
 #include <windows.h>
 #include <time.h>
 #include <share.h>
-#include "shlwapi.h"
+#include <shlwapi.h>
+
+#include <boost/log/trivial.hpp>
 #define BUFFER_SIZE 1000
 
+/////////////////////////////////////////////////////////////////////
 struct Opaque
 {
 	uint32_t length;
@@ -32,12 +35,14 @@ struct Opaque
 	virtual void SetSize(uint32_t len);
 };
 
+/////////////////////////////////////////////////////////////////////
 struct NFSv3FileHandle : public Opaque
 {
 	NFSv3FileHandle();
 	~NFSv3FileHandle() = default;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct NFSv3Filename : public Opaque
 {
 	char* name;
@@ -48,6 +53,7 @@ struct NFSv3Filename : public Opaque
 	void Set(char* str);
 };
 
+/////////////////////////////////////////////////////////////////////
 struct NFSv3Path : public Opaque
 {
 	char* path;
@@ -58,24 +64,28 @@ struct NFSv3Path : public Opaque
 	void Set(char* str);
 };
 
+/////////////////////////////////////////////////////////////////////
 struct SpecData3
 {
 	uint32_t specdata1;
 	uint32_t specdata2;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct NFSTime3
 {
 	uint32_t seconds;
 	uint32_t nseconds;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct SAttrGuard3
 {
 	bool check;
 	NFSTime3 objCtime;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct FAttr3
 {
 	FType3 type;
@@ -93,12 +103,14 @@ struct FAttr3
 	NFSTime3 ctime;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct PostOpAttr
 {
 	bool attributesFollow;
 	FAttr3 attributes;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct WccAttr
 {
 	Size3 size;
@@ -106,60 +118,70 @@ struct WccAttr
 	NFSTime3 ctime;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct PreOpAttr
 {
 	bool attributesFollow;
 	WccAttr attributes;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct WccData
 {
 	PreOpAttr before;
 	PostOpAttr after;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct PostOpFH3
 {
 	bool handleFollows;
 	NFSv3FileHandle handle;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct SetMode3
 {
 	bool setIt;
 	Mode3 mode;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct SetUid3
 {
 	bool setIt;
 	Uid3 uid;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct SetGid3
 {
 	bool setIt;
 	Gid3 gid;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct SetSize3
 {
 	bool setIt;
 	Size3 size;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct SetAtime
 {
 	TimeHow setIt;
 	NFSTime3 atime;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct SetMtime
 {
 	TimeHow setIt;
 	NFSTime3 mtime;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct SAttr3
 {
 	SetMode3 mode;
@@ -170,12 +192,14 @@ struct SAttr3
 	SetMtime mtime;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct DirOpArgs3
 {
 	NFSv3FileHandle dir;
 	NFSv3Filename name;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct CreateHow3
 {
 	CreateMode3 mode;
@@ -183,12 +207,14 @@ struct CreateHow3
 	CreateVerf3 verf;
 };
 
+/////////////////////////////////////////////////////////////////////
 struct SymlinkData3
 {
 	SAttr3 symlinkAttributes;
 	NFSv3Path symlinkData;
 };
 
+/////////////////////////////////////////////////////////////////////
 typedef struct
 {
 	ULONG  ReparseTag;
@@ -220,6 +246,7 @@ typedef struct
 	};
 } REPARSE_DATA_BUFFER, * PREPARSE_DATA_BUFFER;
 
+/////////////////////////////////////////////////////////////////////
 enum
 {
 	NFSPROC3_NULL = 0,
@@ -246,6 +273,7 @@ enum
 	NFSPROC3_COMMIT = 21
 };
 
+/////////////////////////////////////////////////////////////////////
 enum
 {
 	NFS3_OK = 0,
@@ -279,6 +307,7 @@ enum
 	NFS3ERR_JUKEBOX = 10008
 };
 
+/////////////////////////////////////////////////////////////////////
 enum
 {
 	NF3REG = 1,
@@ -290,6 +319,7 @@ enum
 	NF3FIFO = 7
 };
 
+/////////////////////////////////////////////////////////////////////
 enum
 {
 	ACCESS3_READ = 0x0001,
@@ -300,6 +330,7 @@ enum
 	ACCESS3_EXECUTE = 0x0020
 };
 
+/////////////////////////////////////////////////////////////////////
 enum
 {
 	FSF3_LINK = 0x0001,
@@ -308,6 +339,7 @@ enum
 	FSF3_CANSETTIME = 0x0010
 };
 
+/////////////////////////////////////////////////////////////////////
 enum
 {
 	UNSTABLE = 0,
@@ -315,6 +347,7 @@ enum
 	FILE_SYNC = 2
 };
 
+/////////////////////////////////////////////////////////////////////
 enum
 {
 	DONT_CHANGE = 0,
@@ -322,6 +355,7 @@ enum
 	SET_TO_CLIENT_TIME = 2
 };
 
+/////////////////////////////////////////////////////////////////////
 enum
 {
 	UNCHECKED = 0,
@@ -405,24 +439,336 @@ void NFSv3Path::Set(char* str)
 	strcpy_s(path, (strlen(str) + 1), str);
 }
 
-typedef NfsStat3(NFS3Prog::* PPROC)(void);
-
 /////////////////////////////////////////////////////////////////////
-NFS3Prog::NFS3Prog(unsigned int uid, unsigned int gid, bool enableLog)
-	: RPCProg()
-	, m_uid(uid)
-	, m_gid(gid)
-	, m_inStream(nullptr)
-	, m_outStream(nullptr)
-	, m_param(nullptr)
-	, m_result(0)
+void Read(IInputStream& inStream, bool& value)
 {
-	EnableLog(enableLog);
+	uint32_t b = 0;
+
+	if (inStream.Read(&b) < sizeof(uint32_t))
+	{
+		throw std::runtime_error("read failed");
+	}
+
+	value = (b == 1);
 }
 
 /////////////////////////////////////////////////////////////////////
-int NFS3Prog::Process(IInputStream* pInStream, IOutputStream* pOutStream, ProcessParam* pParam)
+void Read(IInputStream& inStream, uint32_t& value)
 {
+	if (inStream.Read(&value) < sizeof(uint32_t))
+	{
+		throw std::runtime_error("read failed");
+	}
+}
+
+/////////////////////////////////////////////////////////////////////
+void Read(IInputStream& inStream, uint64_t& value)
+{
+	if (inStream.Read8(&value) < sizeof(uint64_t))
+	{
+		throw std::runtime_error("read failed");
+	}
+}
+
+/////////////////////////////////////////////////////////////////////
+void Read(IInputStream& inStream, NFSTime3& value)
+{
+	Read(inStream, value.seconds);
+	Read(inStream, value.nseconds);
+}
+
+/////////////////////////////////////////////////////////////////////
+void Read(IInputStream& inStream, SAttr3& value)
+{
+	Read(inStream, value.mode.setIt);
+	if (value.mode.setIt)
+	{
+		Read(inStream, value.mode.mode);
+	}
+
+	Read(inStream, value.uid.setIt);
+	if (value.uid.setIt)
+	{
+		Read(inStream, value.uid.uid);
+	}
+
+	Read(inStream, value.gid.setIt);
+	if (value.gid.setIt)
+	{
+		Read(inStream, value.gid.gid);
+	}
+
+	Read(inStream, value.size.setIt);
+	if (value.size.setIt)
+	{
+		Read(inStream, value.size.size);
+	}
+
+	Read(inStream, value.atime.setIt);
+	if (value.atime.setIt == SET_TO_CLIENT_TIME)
+	{
+		Read(inStream, value.atime.atime);
+	}
+
+	Read(inStream, value.mtime.setIt);
+	if (value.mtime.setIt == SET_TO_CLIENT_TIME)
+	{
+		Read(inStream, value.mtime.mtime);
+	}
+}
+
+/////////////////////////////////////////////////////////////////////
+void Read(IInputStream& inStream, SAttrGuard3& value)
+{
+	Read(inStream, value.check);
+
+	if (value.check)
+	{
+		Read(inStream, value.objCtime);
+	}
+}
+
+/////////////////////////////////////////////////////////////////////
+void Read(IInputStream& inStream, Opaque& value)
+{
+	uint32_t len = 0;
+
+	Read(inStream, len);
+	value.SetSize(len);
+
+	if (inStream.Read(value.contents, len) < len)
+	{
+		throw std::runtime_error("read failed");
+	}
+
+	len = 4 - (len & 3);
+	if (len != 4)
+	{
+		uint32_t byte = 0;
+		if (inStream.Read(&byte, len) < len)
+		{
+			throw std::runtime_error("read failed");
+		}
+	}
+}
+
+/////////////////////////////////////////////////////////////////////
+void Read(IInputStream& inStream, DirOpArgs3& value)
+{
+	Read(inStream, value.dir);
+	Read(inStream, value.name);
+}
+
+/////////////////////////////////////////////////////////////////////
+void Read(IInputStream& inStream, CreateHow3& value)
+{
+	Read(inStream, value.mode);
+	if (value.mode == UNCHECKED || value.mode == GUARDED)
+	{
+		Read(inStream, value.objAttributes);
+	}
+	else
+	{
+		Read(inStream, value.verf);
+	}
+}
+
+/////////////////////////////////////////////////////////////////////
+void Read(IInputStream& inStream, SymlinkData3& value)
+{
+	Read(inStream, value.symlinkAttributes);
+	Read(inStream, value.symlinkData);
+}
+
+/////////////////////////////////////////////////////////////////////
+void Write(IOutputStream& outStream, const bool value)
+{
+	const uint32_t toWrite = value ? 1 : 0;
+	outStream.Write(toWrite);
+}
+
+/////////////////////////////////////////////////////////////////////
+void Write(IOutputStream& outStream, const uint32_t value)
+{
+	outStream.Write(value);
+}
+
+/////////////////////////////////////////////////////////////////////
+void Write(IOutputStream& outStream, const uint64_t value)
+{
+	outStream.Write8(value);
+}
+
+/////////////////////////////////////////////////////////////////////
+void Write(IOutputStream& outStream, const SpecData3& value)
+{
+	Write(outStream, value.specdata1);
+	Write(outStream, value.specdata2);
+}
+
+/////////////////////////////////////////////////////////////////////
+void Write(IOutputStream& outStream, const NFSTime3& value)
+{
+	Write(outStream, value.seconds);
+	Write(outStream, value.nseconds);
+}
+
+/////////////////////////////////////////////////////////////////////
+void Write(IOutputStream& outStream, const FAttr3& value)
+{
+	Write(outStream, value.type);
+	Write(outStream, value.mode);
+	Write(outStream, value.nlink);
+	Write(outStream, value.uid);
+	Write(outStream, value.gid);
+	Write(outStream, value.size);
+	Write(outStream, value.used);
+	Write(outStream, value.rdev);
+	Write(outStream, value.fsid);
+	Write(outStream, value.fileid);
+	Write(outStream, value.atime);
+	Write(outStream, value.mtime);
+	Write(outStream, value.ctime);
+}
+
+/////////////////////////////////////////////////////////////////////
+void Write(IOutputStream& outStream, const Opaque& value)
+{
+	Write(outStream, value.length);
+	outStream.Write(value.contents, value.length);
+
+	const uint32_t len = value.length & 3;
+	if (len != 0)
+	{
+		const uint32_t byte = 0;
+		outStream.Write(byte, 4 - len);
+	}
+}
+
+/////////////////////////////////////////////////////////////////////
+void Write(IOutputStream& outStream, const WccAttr& value)
+{
+	Write(outStream, value.size);
+	Write(outStream, value.mtime);
+	Write(outStream, value.ctime);
+}
+
+/////////////////////////////////////////////////////////////////////
+void Write(IOutputStream& outStream, const PreOpAttr& value)
+{
+	Write(outStream, value.attributesFollow);
+	if (value.attributesFollow)
+	{
+		Write(outStream, value.attributes);
+	}
+}
+
+/////////////////////////////////////////////////////////////////////
+void Write(IOutputStream& outStream, const PostOpAttr& value)
+{
+	Write(outStream, value.attributesFollow);
+	if (value.attributesFollow)
+	{
+		Write(outStream, value.attributes);
+	}
+}
+
+/////////////////////////////////////////////////////////////////////
+void Write(IOutputStream& outStream, const WccData& value)
+{
+	Write(outStream, value.before);
+	Write(outStream, value.after);
+}
+
+/////////////////////////////////////////////////////////////////////
+void Write(IOutputStream& outStream, const PostOpFH3& value)
+{
+	Write(outStream, value.handleFollows);
+	if (value.handleFollows)
+	{
+		Write(outStream, value.handle);
+	}
+}
+
+/////////////////////////////////////////////////////////////////////
+inline const char* NfsStatToString(NfsStat3 stat)
+{
+	switch (stat)
+	{
+	case NFS3_OK:
+		return "OK";
+	case NFS3ERR_PERM:
+		return "PERM";
+	case NFS3ERR_NOENT:
+		return "NOENT";
+	case NFS3ERR_IO:
+		return "IO";
+	case NFS3ERR_NXIO:
+		return "NXIO";
+	case NFS3ERR_ACCES:
+		return "ACCESS";
+	case NFS3ERR_EXIST:
+		return "EXIST";
+	case NFS3ERR_XDEV:
+		return "XDEV";
+	case NFS3ERR_NODEV:
+		return "NODEV";
+	case NFS3ERR_NOTDIR:
+		return "NOTDIR";
+	case NFS3ERR_ISDIR:
+		return "ISDIR";
+	case NFS3ERR_INVAL:
+		return "INVAL";
+	case NFS3ERR_FBIG:
+		return "FBIG";
+	case NFS3ERR_NOSPC:
+		return "NOSPC";
+	case NFS3ERR_ROFS:
+		return "ROFS";
+	case NFS3ERR_MLINK:
+		return "MLINK";
+	case NFS3ERR_NAMETOOLONG:
+		return "NAMETOOLONG";
+	case NFS3ERR_NOTEMPTY:
+		return "NOTEMPTY";
+	case NFS3ERR_DQUOT:
+		return "DQUOT";
+	case NFS3ERR_STALE:
+		return "STALE";
+	case NFS3ERR_REMOTE:
+		return "REMOTE";
+	case NFS3ERR_BADHANDLE:
+		return "BADHANDLE";
+	case NFS3ERR_NOT_SYNC:
+		return "NOT_SYNC";
+	case NFS3ERR_BAD_COOKIE:
+		return "BAD_COOKIE";
+	case NFS3ERR_NOTSUPP:
+		return "NOTSUPP";
+	case NFS3ERR_TOOSMALL:
+		return "TOOSMALL";
+	case NFS3ERR_SERVERFAULT:
+		return "SERVERFAULT";
+	case NFS3ERR_BADTYPE:
+		return "BADTYPE";
+	case NFS3ERR_JUKEBOX:
+		return "JUKEBOX";
+	default:
+		return "UNKNOWN";
+	}
+}
+
+/////////////////////////////////////////////////////////////////////
+NFS3Prog::NFS3Prog(unsigned int uid, unsigned int gid)
+	: RPCProg()
+	, m_uid(uid)
+	, m_gid(gid)
+{}
+
+/////////////////////////////////////////////////////////////////////
+int NFS3Prog::Process(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
+{
+	typedef NfsStat3(NFS3Prog::* PPROC)(IInputStream&, IOutputStream&, RPCParam&);
 	static PPROC pf[] = {
 		&NFS3Prog::ProcedureNULL, &NFS3Prog::ProcedureGETATTR, &NFS3Prog::ProcedureSETATTR,
 		&NFS3Prog::ProcedureLOOKUP, &NFS3Prog::ProcedureACCESS, &NFS3Prog::ProcedureREADLINK,
@@ -434,197 +780,75 @@ int NFS3Prog::Process(IInputStream* pInStream, IOutputStream* pOutStream, Proces
 		&NFS3Prog::ProcedureCOMMIT
 	};
 
-	NfsStat3 stat = 0;
-
-	struct tm current;
-	time_t now;
-
-	time(&now);
-	localtime_s(&current, &now);
-
-	PrintLog("[%02d:%02d:%02d] NFS ", current.tm_hour, current.tm_min, current.tm_sec);
-
-	if (pParam->nProc >= sizeof(pf) / sizeof(PPROC))
+	if (param.procNum >= sizeof(pf) / sizeof(PPROC))
 	{
-		ProcedureNOIMP();
-		PrintLog("\n");
-
+		BOOST_LOG_TRIVIAL(error) << "NFS3 client " << param.remoteAddr << " requested non existing procedure " << param.procNum;
 		return PRC_NOTIMP;
 	}
 
-	m_inStream = pInStream;
-	m_outStream = pOutStream;
-	m_param = pParam;
-	m_result = PRC_OK;
-
 	try
 	{
-		stat = (this->*pf[pParam->nProc])();
+		const auto stat = (this->*pf[param.procNum])(inStream, outStream, param);
+		BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " procedure " << param.procNum
+			<< " completed with code " << NfsStatToString(stat);
 	}
-	catch (const std::runtime_error& re)
+	catch (const std::exception& e)
 	{
-		m_result = PRC_FAIL;
-		PrintLog("Runtime error: ");
-		PrintLog(re.what());
-	}
-	catch (const std::exception& ex)
-	{
-		m_result = PRC_FAIL;
-		PrintLog("Exception: ");
-		PrintLog(ex.what());
-	}
-	catch (...)
-	{
-		m_result = PRC_FAIL;
-		PrintLog("Unknown failure: Possible memory corruption");
+		BOOST_LOG_TRIVIAL(error) << "NFS3 procedure failed: " << e.what();
+		return PRC_FAIL;
 	}
 
-	PrintLog(" ");
-
-	switch (stat)
-	{
-	case NFS3_OK:
-		PrintLog("OK");
-		break;
-	case NFS3ERR_PERM:
-		PrintLog("PERM");
-		break;
-	case NFS3ERR_NOENT:
-		PrintLog("NOENT");
-		break;
-	case NFS3ERR_IO:
-		PrintLog("IO");
-		break;
-	case NFS3ERR_NXIO:
-		PrintLog("NXIO");
-		break;
-	case NFS3ERR_ACCES:
-		PrintLog("ACCESS");
-		break;
-	case NFS3ERR_EXIST:
-		PrintLog("EXIST");
-		break;
-	case NFS3ERR_XDEV:
-		PrintLog("XDEV");
-		break;
-	case NFS3ERR_NODEV:
-		PrintLog("NODEV");
-		break;
-	case NFS3ERR_NOTDIR:
-		PrintLog("NOTDIR");
-		break;
-	case NFS3ERR_ISDIR:
-		PrintLog("ISDIR");
-		break;
-	case NFS3ERR_INVAL:
-		PrintLog("INVAL");
-		break;
-	case NFS3ERR_FBIG:
-		PrintLog("FBIG");
-		break;
-	case NFS3ERR_NOSPC:
-		PrintLog("NOSPC");
-		break;
-	case NFS3ERR_ROFS:
-		PrintLog("ROFS");
-		break;
-	case NFS3ERR_MLINK:
-		PrintLog("MLINK");
-		break;
-	case NFS3ERR_NAMETOOLONG:
-		PrintLog("NAMETOOLONG");
-		break;
-	case NFS3ERR_NOTEMPTY:
-		PrintLog("NOTEMPTY");
-		break;
-	case NFS3ERR_DQUOT:
-		PrintLog("DQUOT");
-		break;
-	case NFS3ERR_STALE:
-		PrintLog("STALE");
-		break;
-	case NFS3ERR_REMOTE:
-		PrintLog("REMOTE");
-		break;
-	case NFS3ERR_BADHANDLE:
-		PrintLog("BADHANDLE");
-		break;
-	case NFS3ERR_NOT_SYNC:
-		PrintLog("NOT_SYNC");
-		break;
-	case NFS3ERR_BAD_COOKIE:
-		PrintLog("BAD_COOKIE");
-		break;
-	case NFS3ERR_NOTSUPP:
-		PrintLog("NOTSUPP");
-		break;
-	case NFS3ERR_TOOSMALL:
-		PrintLog("TOOSMALL");
-		break;
-	case NFS3ERR_SERVERFAULT:
-		PrintLog("SERVERFAULT");
-		break;
-	case NFS3ERR_BADTYPE:
-		PrintLog("BADTYPE");
-		break;
-	case NFS3ERR_JUKEBOX:
-		PrintLog("JUKEBOX");
-		break;
-	default:
-		assert(false);
-		break;
-	}
-
-	PrintLog("\n");
-
-	return m_result;
+	return PRC_OK;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureNULL()
+NfsStat3 NFS3Prog::ProcedureNULL(IInputStream&, IOutputStream&, RPCParam&)
 {
-	PrintLog("NULL");
 	return NFS3_OK;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureGETATTR()
+NfsStat3 NFS3Prog::ProcedureGETATTR(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	std::string path;
-	FAttr3 attributes;
-	NfsStat3 stat;
+	FAttr3 attributes{};
+	NfsStat3 stat = NFS3_OK;
+	std::string path{};
 
-	PrintLog("GETATTR");
-	bool validHandle = GetPath(path);
-	const char* cStr = validHandle ? path.c_str() : NULL;
-	stat = CheckFile(cStr);
+	try
+	{
+		path = GetPath(inStream);
+		stat = CheckFile(path);
 
-	if (stat == NFS3ERR_NOENT)
+		if (stat == NFS3ERR_NOENT)
+		{
+			stat = NFS3ERR_STALE;
+		}
+		else if (stat == NFS3_OK)
+		{
+			if (!GetFileAttributesForNFS(path, &attributes))
+			{
+				stat = NFS3ERR_IO;
+			}
+		}
+	}
+	catch (const std::exception&)
 	{
 		stat = NFS3ERR_STALE;
 	}
-	else if (stat == NFS3_OK)
-	{
-		if (!GetFileAttributesForNFS(cStr, &attributes))
-		{
-			stat = NFS3ERR_IO;
-		}
-	}
 
-	Write(&stat);
-
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " GETATTR '" << path << "': " << NfsStatToString(stat);
+	Write(outStream, stat);
 	if (stat == NFS3_OK)
 	{
-		Write(&attributes);
+		Write(outStream, attributes);
 	}
 
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureSETATTR()
+NfsStat3 NFS3Prog::ProcedureSETATTR(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	std::string path;
 	SAttr3 newAttributes;
 	SAttrGuard3 guard;
 	WccData objWcc;
@@ -635,13 +859,11 @@ NfsStat3 NFS3Prog::ProcedureSETATTR()
 	FILETIME fileTime;
 	SYSTEMTIME systemTime;
 
-	PrintLog("SETATTR");
-	bool validHandle = GetPath(path);
-	const char* cStr = validHandle ? path.c_str() : NULL;
-	Read(&newAttributes);
-	Read(&guard);
-	stat = CheckFile(cStr);
-	objWcc.before.attributesFollow = GetFileAttributesForNFS(cStr, &objWcc.before.attributes);
+	const std::string path = GetPath(inStream);
+	Read(inStream, newAttributes);
+	Read(inStream, guard);
+	stat = CheckFile(path);
+	objWcc.before.attributesFollow = GetFileAttributesForNFS(path, &objWcc.before.attributes);
 
 	if (stat == NFS3_OK)
 	{
@@ -664,7 +886,7 @@ NfsStat3 NFS3Prog::ProcedureSETATTR()
 			//     nMode |= S_IEXEC;
 			// }
 
-			if (_chmod(cStr, mode) != 0)
+			if (_chmod(path.c_str(), mode) != 0)
 			{
 				stat = NFS3ERR_INVAL;
 			}
@@ -680,7 +902,7 @@ NfsStat3 NFS3Prog::ProcedureSETATTR()
 
 		if (newAttributes.mtime.setIt == SET_TO_SERVER_TIME || newAttributes.atime.setIt == SET_TO_SERVER_TIME)
 		{
-			fileHandle = CreateFile(cStr, FILE_WRITE_ATTRIBUTES, FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
+			fileHandle = CreateFile(path.c_str(), FILE_WRITE_ATTRIBUTES, FILE_SHARE_WRITE, 0, OPEN_EXISTING, 0, 0);
 			if (fileHandle != INVALID_HANDLE_VALUE)
 			{
 				GetSystemTime(&systemTime);
@@ -699,7 +921,7 @@ NfsStat3 NFS3Prog::ProcedureSETATTR()
 
 		if (newAttributes.size.setIt)
 		{
-			file = _fsopen(cStr, "r+b", _SH_DENYWR);
+			file = _fsopen(path.c_str(), "r+b", _SH_DENYWR);
 			if (file != nullptr)
 			{
 				int filedes = _fileno(file);
@@ -709,32 +931,29 @@ NfsStat3 NFS3Prog::ProcedureSETATTR()
 		}
 	}
 
-	objWcc.after.attributesFollow = GetFileAttributesForNFS(cStr, &objWcc.after.attributes);
+	objWcc.after.attributesFollow = GetFileAttributesForNFS(path, &objWcc.after.attributes);
 
-	Write(&stat);
-	Write(&objWcc);
+	Write(outStream, stat);
+	Write(outStream, objWcc);
 
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " SETATTR '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureLOOKUP()
+NfsStat3 NFS3Prog::ProcedureLOOKUP(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	char* path;
 	NFSv3FileHandle object;
 	PostOpAttr fileAttributes;
 	PostOpAttr dirAttributes;
 	NfsStat3 stat;
 
-	PrintLog("LOOKUP");
-
 	std::string dirName;
 	std::string fileName;
-	ReadDirectory(dirName, fileName);
+	ReadDirectory(inStream, dirName, fileName);
 
-	path = GetFullPath(dirName, fileName);
-	stat = CheckFile((char*)dirName.c_str(), path);
-
+	std::string path = GetFullPath(dirName, fileName);
+	stat = CheckFile(dirName, path);
 	if (stat == NFS3_OK)
 	{
 		GetFileHandle(path, &object);
@@ -743,57 +962,52 @@ NfsStat3 NFS3Prog::ProcedureLOOKUP()
 
 	dirAttributes.attributesFollow = GetFileAttributesForNFS((char*)dirName.c_str(), &dirAttributes.attributes);
 
-	Write(&stat);
+	Write(outStream, stat);
 
 	if (stat == NFS3_OK)
 	{
-		Write(&object);
-		Write(&fileAttributes);
+		Write(outStream, object);
+		Write(outStream, fileAttributes);
 	}
 
-	Write(&dirAttributes);
-
+	Write(outStream, dirAttributes);
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " LOOKUP '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureACCESS()
+NfsStat3 NFS3Prog::ProcedureACCESS(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	std::string path;
 	uint32_t access;
 	PostOpAttr objAttributes;
 	NfsStat3 stat;
 
-	PrintLog("ACCESS");
-	bool validHandle = GetPath(path);
-	const char* cStr = validHandle ? path.c_str() : NULL;
-	Read(&access);
-	stat = CheckFile(cStr);
+	const std::string path = GetPath(inStream);
+	Read(inStream, access);
+	stat = CheckFile(path);
 
 	if (stat == NFS3ERR_NOENT)
 	{
 		stat = NFS3ERR_STALE;
 	}
 
-	objAttributes.attributesFollow = GetFileAttributesForNFS(cStr, &objAttributes.attributes);
+	objAttributes.attributesFollow = GetFileAttributesForNFS(path, &objAttributes.attributes);
 
-	Write(&stat);
-	Write(&objAttributes);
+	Write(outStream, stat);
+	Write(outStream, objAttributes);
 
 	if (stat == NFS3_OK)
 	{
-		Write(&access);
+		Write(outStream, access);
 	}
 
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " ACCESS '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureREADLINK(void)
+NfsStat3 NFS3Prog::ProcedureREADLINK(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	PrintLog("READLINK");
-	std::string path;
-
 	PostOpAttr symlinkAttributes;
 	NFSv3Path data = NFSv3Path();
 
@@ -805,11 +1019,10 @@ NfsStat3 NFS3Prog::ProcedureREADLINK(void)
 	lpOutBuffer = (REPARSE_DATA_BUFFER*)malloc(MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
 	DWORD bytesReturned;
 
-	bool validHandle = GetPath(path);
-	const char* cStr = validHandle ? path.c_str() : NULL;
-	stat = CheckFile(cStr);
+	std::string path = GetPath(inStream);
+	stat = CheckFile(path);
 	if (stat == NFS3_OK) {
-		hFile = CreateFile(cStr, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_REPARSE_POINT | FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, NULL);
+		hFile = CreateFile(path.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_REPARSE_POINT | FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, NULL);
 
 		if (hFile == INVALID_HANDLE_VALUE) {
 			stat = NFS3ERR_IO;
@@ -851,7 +1064,7 @@ NfsStat3 NFS3Prog::ProcedureREADLINK(void)
 								path = path.substr(0, lastFolderIndex);
 							}
 							char szOut[MAX_PATH] = "";
-							PathRelativePathTo(szOut, cStr, FILE_ATTRIBUTE_DIRECTORY, target, FILE_ATTRIBUTE_DIRECTORY);
+							PathRelativePathTo(szOut, path.c_str(), FILE_ATTRIBUTE_DIRECTORY, target, FILE_ATTRIBUTE_DIRECTORY);
 							std::string symlinkPath(szOut);
 							finalSymlinkPath.assign(symlinkPath);
 						}
@@ -875,7 +1088,7 @@ NfsStat3 NFS3Prog::ProcedureREADLINK(void)
 							path = path.substr(0, lastFolderIndex);
 						}
 						char szOut[MAX_PATH] = "";
-						PathRelativePathTo(szOut, cStr, FILE_ATTRIBUTE_DIRECTORY, target.c_str(), FILE_ATTRIBUTE_DIRECTORY);
+						PathRelativePathTo(szOut, path.c_str(), FILE_ATTRIBUTE_DIRECTORY, target.c_str(), FILE_ATTRIBUTE_DIRECTORY);
 						std::string symlinkPath = szOut;
 						finalSymlinkPath.assign(symlinkPath);
 					}
@@ -891,155 +1104,168 @@ NfsStat3 NFS3Prog::ProcedureREADLINK(void)
 		CloseHandle(hFile);
 	}
 
-	symlinkAttributes.attributesFollow = GetFileAttributesForNFS(cStr, &symlinkAttributes.attributes);
+	symlinkAttributes.attributesFollow = GetFileAttributesForNFS(path, &symlinkAttributes.attributes);
 
-	Write(&stat);
-	Write(&symlinkAttributes);
+	Write(outStream, stat);
+	Write(outStream, symlinkAttributes);
 	if (stat == NFS3_OK) {
-		Write(&data);
+		Write(outStream, data);
 	}
 
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " READLINK '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureREAD(void)
+NfsStat3 NFS3Prog::ProcedureREAD(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	std::string path;
-	Offset3 offset;
-	Count3 count;
-	PostOpAttr file_attributes;
-	bool eof;
-	Opaque data;
-	NfsStat3 stat;
-	FILE* pFile;
+	Offset3 offset = 0;
+	Count3 count = 0;
+	PostOpAttr fileAttributes{};
+	bool eof = false;
+	Opaque data{};
+	NfsStat3 stat{};
+	FILE* pFile = nullptr;
 
-	PrintLog("READ");
-	bool validHandle = GetPath(path);
-	const char* cStr = validHandle ? path.c_str() : NULL;
-	Read(&offset);
-	Read(&count);
-	stat = CheckFile(cStr);
+	const std::string path = GetPath(inStream);
+	Read(inStream, offset);
+	Read(inStream, count);
+	stat = CheckFile(path);
 
-	if (stat == NFS3_OK) {
+	if (stat == NFS3_OK)
+	{
 		data.SetSize(count);
-		pFile = _fsopen(cStr, "rb", _SH_DENYWR);
+		pFile = _fsopen(path.c_str(), "rb", _SH_DENYWR);
 
-		if (pFile != NULL) {
+		if (pFile != NULL)
+		{
 			_fseeki64(pFile, offset, SEEK_SET);
 			count = static_cast<Count3>(fread(data.contents, sizeof(char), count, pFile));
 			eof = fgetc(pFile) == EOF;
 			fclose(pFile);
 		}
-		else {
+		else
+		{
 			char buffer[BUFFER_SIZE];
 			errno_t errorNumber = errno;
 			strerror_s(buffer, BUFFER_SIZE, errorNumber);
-			PrintLog(buffer);
 
-			if (errorNumber == 13) {
+			if (errorNumber == 13)
+			{
 				stat = NFS3ERR_ACCES;
 			}
-			else {
+			else
+			{
 				stat = NFS3ERR_IO;
 			}
 		}
 	}
 
-	file_attributes.attributesFollow = GetFileAttributesForNFS(cStr, &file_attributes.attributes);
+	fileAttributes.attributesFollow = GetFileAttributesForNFS(path, &fileAttributes.attributes);
 
-	Write(&stat);
-	Write(&file_attributes);
+	Write(outStream, stat);
+	Write(outStream, fileAttributes);
 
-	if (stat == NFS3_OK) {
-		Write(&count);
-		Write(&eof);
-		Write(&data);
+	if (stat == NFS3_OK)
+	{
+		Write(outStream, count);
+		Write(outStream, eof);
+		Write(outStream, data);
 	}
 
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " READ '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureWRITE(void)
+NfsStat3 NFS3Prog::ProcedureWRITE(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	std::string path;
-	Offset3 offset;
-	Count3 count;
-	StableHow stable;
-	Opaque data;
-	WccData file_wcc;
-	WriteVerf3 verf;
-	NfsStat3 stat;
-	FILE* pFile;
+	Offset3 offset = 0;
+	Count3 count = 0;
+	StableHow stable{};
+	Opaque data{};
+	WccData fileWcc{};
+	WriteVerf3 verf{};
+	NfsStat3 stat{};
+	FILE* pFile = nullptr;
 
-	PrintLog("WRITE");
-	bool validHandle = GetPath(path);
-	const char* cStr = validHandle ? path.c_str() : NULL;
-	Read(&offset);
-	Read(&count);
-	Read(&stable);
-	Read(&data);
-	stat = CheckFile(cStr);
+	const std::string path = GetPath(inStream);
+	Read(inStream, offset);
+	Read(inStream, count);
+	Read(inStream, stable);
+	Read(inStream, data);
+	stat = CheckFile(path);
 
-	file_wcc.before.attributesFollow = GetFileAttributesForNFS(cStr, &file_wcc.before.attributes);
+	fileWcc.before.attributesFollow = GetFileAttributesForNFS(path, &fileWcc.before.attributes);
 
-	if (stat == NFS3_OK) {
-		if (stable == UNSTABLE) {
+	if (stat == NFS3_OK)
+	{
+		if (stable == UNSTABLE)
+		{
 			NFSv3FileHandle handle;
-			GetFileHandle(cStr, &handle);
+			GetFileHandle(path, &handle);
 			int handleId = *(unsigned int*)handle.contents;
 
-			if (unstableStorageFile.count(handleId) == 0) {
-				pFile = _fsopen(cStr, "r+b", _SH_DENYWR);
-				if (pFile != NULL) {
+			if (unstableStorageFile.count(handleId) == 0)
+			{
+				pFile = _fsopen(path.c_str(), "r+b", _SH_DENYWR);
+				if (pFile != NULL)
+				{
 					unstableStorageFile.insert(std::make_pair(handleId, pFile));
 				}
 			}
-			else {
+			else
+			{
 				pFile = unstableStorageFile[handleId];
 			}
 
-			if (pFile != NULL) {
+			if (pFile != NULL)
+			{
 				_fseeki64(pFile, offset, SEEK_SET);
 				count = static_cast<Count3>(fwrite(data.contents, sizeof(char), data.length, pFile));
 			}
-			else {
+			else
+			{
 				char buffer[BUFFER_SIZE];
 				errno_t errorNumber = errno;
 				strerror_s(buffer, BUFFER_SIZE, errorNumber);
-				PrintLog(buffer);
 
-				if (errorNumber == 13) {
+				if (errorNumber == 13)
+				{
 					stat = NFS3ERR_ACCES;
 				}
-				else {
+				else
+				{
 					stat = NFS3ERR_IO;
 				}
 			}
 			// this should not be zero but a timestamp (process start time) instead
 			verf = 0;
 			// we can reuse this, because no physical write has happend
-			file_wcc.after.attributesFollow = file_wcc.before.attributesFollow;
+			fileWcc.after.attributesFollow = fileWcc.before.attributesFollow;
 		}
-		else {
-			pFile = _fsopen(cStr, "r+b", _SH_DENYWR);
+		else
+		{
+			pFile = _fsopen(path.c_str(), "r+b", _SH_DENYWR);
 
-			if (pFile != NULL) {
+			if (pFile != NULL)
+			{
 				_fseeki64(pFile, offset, SEEK_SET);
 				count = static_cast<Count3>(fwrite(data.contents, sizeof(char), data.length, pFile));
 				fclose(pFile);
 			}
-			else {
+			else
+			{
 				char buffer[BUFFER_SIZE];
 				errno_t errorNumber = errno;
 				strerror_s(buffer, BUFFER_SIZE, errorNumber);
-				PrintLog(buffer);
 
-				if (errorNumber == 13) {
+				if (errorNumber == 13)
+				{
 					stat = NFS3ERR_ACCES;
 				}
-				else {
+				else
+				{
 					stat = NFS3ERR_IO;
 				}
 			}
@@ -1047,26 +1273,27 @@ NfsStat3 NFS3Prog::ProcedureWRITE(void)
 			stable = FILE_SYNC;
 			verf = 0;
 
-			file_wcc.after.attributesFollow = GetFileAttributesForNFS(cStr, &file_wcc.after.attributes);
+			fileWcc.after.attributesFollow = GetFileAttributesForNFS(path, &fileWcc.after.attributes);
 		}
 	}
 
-	Write(&stat);
-	Write(&file_wcc);
+	Write(outStream, stat);
+	Write(outStream, fileWcc);
 
-	if (stat == NFS3_OK) {
-		Write(&count);
-		Write(&stable);
-		Write(&verf);
+	if (stat == NFS3_OK)
+	{
+		Write(outStream, count);
+		Write(outStream, stable);
+		Write(outStream, verf);
 	}
 
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " WRITE '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureCREATE(void)
+NfsStat3 NFS3Prog::ProcedureCREATE(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	char* path;
 	CreateHow3 how;
 	PostOpFH3 obj;
 	PostOpAttr objAttributes;
@@ -1074,119 +1301,122 @@ NfsStat3 NFS3Prog::ProcedureCREATE(void)
 	NfsStat3 stat;
 	FILE* pFile;
 
-	PrintLog("CREATE");
 	std::string dirName;
 	std::string fileName;
-	ReadDirectory(dirName, fileName);
-	path = GetFullPath(dirName, fileName);
-	Read(&how);
+	ReadDirectory(inStream, dirName, fileName);
+	std::string path = GetFullPath(dirName, fileName);
+	Read(inStream, how);
 
-	dir_wcc.before.attributesFollow = GetFileAttributesForNFS((char*)dirName.c_str(), &dir_wcc.before.attributes);
+	dir_wcc.before.attributesFollow = GetFileAttributesForNFS(dirName, &dir_wcc.before.attributes);
 
-	pFile = _fsopen(path, "wb", _SH_DENYWR);
+	pFile = _fsopen(path.c_str(), "wb", _SH_DENYWR);
 
-	if (pFile != NULL) {
+	if (pFile != nullptr)
+	{
 		fclose(pFile);
 		stat = NFS3_OK;
 	}
-	else {
+	else
+	{
 		char buffer[BUFFER_SIZE];
 		errno_t errorNumber = errno;
 		strerror_s(buffer, BUFFER_SIZE, errorNumber);
-		PrintLog(buffer);
 
-		if (errorNumber == 2) {
+		if (errorNumber == 2)
+		{
 			stat = NFS3ERR_STALE;
 		}
-		else if (errorNumber == 13) {
+		else if (errorNumber == 13)
+		{
 			stat = NFS3ERR_ACCES;
 		}
-		else {
+		else
+		{
 			stat = NFS3ERR_IO;
 		}
 	}
 
-	if (stat == NFS3_OK) {
+	if (stat == NFS3_OK)
+	{
 		obj.handleFollows = GetFileHandle(path, &obj.handle);
 		objAttributes.attributesFollow = GetFileAttributesForNFS(path, &objAttributes.attributes);
 	}
 
 	dir_wcc.after.attributesFollow = GetFileAttributesForNFS((char*)dirName.c_str(), &dir_wcc.after.attributes);
 
-	Write(&stat);
+	Write(outStream, stat);
 
-	if (stat == NFS3_OK) {
-		Write(&obj);
-		Write(&objAttributes);
+	if (stat == NFS3_OK)
+	{
+		Write(outStream, obj);
+		Write(outStream, objAttributes);
 	}
 
-	Write(&dir_wcc);
-
+	Write(outStream, dir_wcc);
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " CREATE '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureMKDIR(void)
+NfsStat3 NFS3Prog::ProcedureMKDIR(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	char* path;
 	SAttr3 attributes;
 	PostOpFH3 obj;
 	PostOpAttr objAttributes;
 	WccData dir_wcc;
 	NfsStat3 stat;
 
-	PrintLog("MKDIR");
-
 	std::string dirName;
 	std::string fileName;
-	ReadDirectory(dirName, fileName);
-	path = GetFullPath(dirName, fileName);
-	Read(&attributes);
+	ReadDirectory(inStream, dirName, fileName);
+	std::string path = GetFullPath(dirName, fileName);
+	Read(inStream, attributes);
 
 	dir_wcc.before.attributesFollow = GetFileAttributesForNFS((char*)dirName.c_str(), &dir_wcc.before.attributes);
 
-	int result = _mkdir(path);
-
-	if (result == 0) {
+	const int result = _mkdir(path.c_str());
+	if (result == 0)
+	{
 		stat = NFS3_OK;
 		obj.handleFollows = GetFileHandle(path, &obj.handle);
 		objAttributes.attributesFollow = GetFileAttributesForNFS(path, &objAttributes.attributes);
 	}
-	else if (errno == EEXIST) {
-		PrintLog("Directory already exists.");
+	else if (errno == EEXIST)
+	{
 		stat = NFS3ERR_EXIST;
 	}
-	else if (errno == ENOENT) {
+	else if (errno == ENOENT)
+	{
 		stat = NFS3ERR_NOENT;
 	}
-	else {
+	else
+	{
 		stat = CheckFile(path);
 
-		if (stat != NFS3_OK) {
+		if (stat != NFS3_OK)
+		{
 			stat = NFS3ERR_IO;
 		}
 	}
 
 	dir_wcc.after.attributesFollow = GetFileAttributesForNFS((char*)dirName.c_str(), &dir_wcc.after.attributes);
 
-	Write(&stat);
+	Write(outStream, stat);
 
-	if (stat == NFS3_OK) {
-		Write(&obj);
-		Write(&objAttributes);
+	if (stat == NFS3_OK)
+	{
+		Write(outStream, obj);
+		Write(outStream, objAttributes);
 	}
 
-	Write(&dir_wcc);
-
+	Write(outStream, dir_wcc);
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " MKDIR '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureSYMLINK(void)
+NfsStat3 NFS3Prog::ProcedureSYMLINK(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	PrintLog("SYMLINK");
-
-	char* path;
 	PostOpFH3 obj;
 	PostOpAttr objAttributes;
 	WccData dir_wcc;
@@ -1200,12 +1430,12 @@ NfsStat3 NFS3Prog::ProcedureSYMLINK(void)
 
 	std::string dirName;
 	std::string fileName;
-	ReadDirectory(dirName, fileName);
-	path = GetFullPath(dirName, fileName);
+	ReadDirectory(inStream, dirName, fileName);
+	std::string path = GetFullPath(dirName, fileName);
 
-	Read(&symlink);
+	Read(inStream, symlink);
 
-	_In_ LPTSTR lpSymlinkFileName = path; // symlink (full path)
+	_In_ LPTSTR lpSymlinkFileName = (LPTSTR)path.c_str(); // symlink (full path)
 
 	// TODO: Maybe revisit this later for a cleaner solution
 	// Convert target path to windows path format, maybe this could also be done
@@ -1226,82 +1456,90 @@ NfsStat3 NFS3Prog::ProcedureSYMLINK(void)
 	targetFileAttr = GetFileAttributes(fullTargetPathNormalized);
 
 	dwFlags = 0x0;
-	if (targetFileAttr & FILE_ATTRIBUTE_DIRECTORY) {
+	if (targetFileAttr & FILE_ATTRIBUTE_DIRECTORY)
+	{
 		dwFlags = SYMBOLIC_LINK_FLAG_DIRECTORY;
 	}
 
 	BOOLEAN failed = CreateSymbolicLink(lpSymlinkFileName, lpTargetFileName, dwFlags);
 
-	if (failed != 0) {
+	if (failed != 0)
+	{
 		stat = NFS3_OK;
 		obj.handleFollows = GetFileHandle(path, &obj.handle);
 		objAttributes.attributesFollow = GetFileAttributesForNFS(path, &objAttributes.attributes);
 	}
-	else {
+	else
+	{
 		stat = NFS3ERR_IO;
-		PrintLog("An error occurs or file already exists.");
 		stat = CheckFile(path);
-		if (stat != NFS3_OK) {
+		if (stat != NFS3_OK)
+		{
 			stat = NFS3ERR_IO;
 		}
 	}
 
 	dir_wcc.after.attributesFollow = GetFileAttributesForNFS((char*)dirName.c_str(), &dir_wcc.after.attributes);
 
-	Write(&stat);
+	Write(outStream, stat);
 
-	if (stat == NFS3_OK) {
-		Write(&obj);
-		Write(&objAttributes);
+	if (stat == NFS3_OK)
+	{
+		Write(outStream, obj);
+		Write(outStream, objAttributes);
 	}
 
-	Write(&dir_wcc);
-
+	Write(outStream, dir_wcc);
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " SYMLINK '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureMKNOD(void)
+NfsStat3 NFS3Prog::ProcedureMKNOD(IInputStream&, IOutputStream&, RPCParam& param)
 {
 	//TODO
-	PrintLog("MKNOD");
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " MKNOD not implemented";
 
 	return NFS3ERR_NOTSUPP;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureREMOVE(void)
+NfsStat3 NFS3Prog::ProcedureREMOVE(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	char* path;
 	WccData dir_wcc;
 	NfsStat3 stat;
 	unsigned long returnCode;
 
-	PrintLog("REMOVE");
-
 	std::string dirName;
 	std::string fileName;
-	ReadDirectory(dirName, fileName);
-	path = GetFullPath(dirName, fileName);
-	stat = CheckFile((char*)dirName.c_str(), path);
+	ReadDirectory(inStream, dirName, fileName);
+	std::string path = GetFullPath(dirName, fileName);
+	stat = CheckFile(dirName, path);
 
-	dir_wcc.before.attributesFollow = GetFileAttributesForNFS((char*)dirName.c_str(), &dir_wcc.before.attributes);
+	dir_wcc.before.attributesFollow = GetFileAttributesForNFS(dirName, &dir_wcc.before.attributes);
 
-	if (stat == NFS3_OK) {
-		DWORD fileAttr = GetFileAttributes(path);
-		if ((fileAttr & FILE_ATTRIBUTE_DIRECTORY) && (fileAttr & FILE_ATTRIBUTE_REPARSE_POINT)) {
+	if (stat == NFS3_OK)
+	{
+		DWORD fileAttr = GetFileAttributes(path.c_str());
+		if ((fileAttr & FILE_ATTRIBUTE_DIRECTORY) && (fileAttr & FILE_ATTRIBUTE_REPARSE_POINT))
+		{
 			returnCode = RemoveFolder(path);
-			if (returnCode != 0) {
-				if (returnCode == ERROR_DIR_NOT_EMPTY) {
+			if (returnCode != 0)
+			{
+				if (returnCode == ERROR_DIR_NOT_EMPTY)
+				{
 					stat = NFS3ERR_NOTEMPTY;
 				}
-				else {
+				else
+				{
 					stat = NFS3ERR_IO;
 				}
 			}
 		}
-		else {
-			if (!RemoveFile(path)) {
+		else
+		{
+			if (!RemoveFile(path))
+			{
 				stat = NFS3ERR_IO;
 			}
 		}
@@ -1309,170 +1547,181 @@ NfsStat3 NFS3Prog::ProcedureREMOVE(void)
 
 	dir_wcc.after.attributesFollow = GetFileAttributesForNFS((char*)dirName.c_str(), &dir_wcc.after.attributes);
 
-	Write(&stat);
-	Write(&dir_wcc);
+	Write(outStream, stat);
+	Write(outStream, dir_wcc);
 
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " REMOVE '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureRMDIR(void)
+NfsStat3 NFS3Prog::ProcedureRMDIR(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	char* path;
 	WccData dir_wcc;
 	NfsStat3 stat;
 	unsigned long returnCode;
 
-	PrintLog("RMDIR");
-
 	std::string dirName;
 	std::string fileName;
-	ReadDirectory(dirName, fileName);
-	path = GetFullPath(dirName, fileName);
-	stat = CheckFile((char*)dirName.c_str(), path);
+	ReadDirectory(inStream, dirName, fileName);
+	std::string path = GetFullPath(dirName, fileName);
+	stat = CheckFile(dirName, path);
 
-	dir_wcc.before.attributesFollow = GetFileAttributesForNFS((char*)dirName.c_str(), &dir_wcc.before.attributes);
+	dir_wcc.before.attributesFollow = GetFileAttributesForNFS(dirName, &dir_wcc.before.attributes);
 
-	if (stat == NFS3_OK) {
+	if (stat == NFS3_OK)
+	{
 		returnCode = RemoveFolder(path);
-		if (returnCode != 0) {
-			if (returnCode == ERROR_DIR_NOT_EMPTY) {
+		if (returnCode != 0)
+		{
+			if (returnCode == ERROR_DIR_NOT_EMPTY)
+			{
 				stat = NFS3ERR_NOTEMPTY;
 			}
-			else {
+			else
+			{
 				stat = NFS3ERR_IO;
 			}
 		}
 	}
 
-	dir_wcc.after.attributesFollow = GetFileAttributesForNFS((char*)dirName.c_str(), &dir_wcc.after.attributes);
+	dir_wcc.after.attributesFollow = GetFileAttributesForNFS(dirName, &dir_wcc.after.attributes);
 
-	Write(&stat);
-	Write(&dir_wcc);
+	Write(outStream, stat);
+	Write(outStream, dir_wcc);
 
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " RMDIR '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureRENAME(void)
+NfsStat3 NFS3Prog::ProcedureRENAME(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	char pathFrom[MAXPATHLEN], * pathTo;
 	WccData fromdir_wcc, todir_wcc;
 	NfsStat3 stat;
 	unsigned long returnCode;
 
-	PrintLog("RENAME");
-
 	std::string dirFromName;
 	std::string fileFromName;
-	ReadDirectory(dirFromName, fileFromName);
-	strcpy_s(pathFrom, GetFullPath(dirFromName, fileFromName));
+	ReadDirectory(inStream, dirFromName, fileFromName);
+	std::string pathFrom = GetFullPath(dirFromName, fileFromName);
 
 	std::string dirToName;
 	std::string fileToName;
-	ReadDirectory(dirToName, fileToName);
-	pathTo = GetFullPath(dirToName, fileToName);
+	ReadDirectory(inStream, dirToName, fileToName);
+	std::string pathTo = GetFullPath(dirToName, fileToName);
 
-	stat = CheckFile((char*)dirFromName.c_str(), pathFrom);
+	stat = CheckFile(dirFromName, pathFrom);
 
-	fromdir_wcc.before.attributesFollow = GetFileAttributesForNFS((char*)dirFromName.c_str(), &fromdir_wcc.before.attributes);
-	todir_wcc.before.attributesFollow = GetFileAttributesForNFS((char*)dirToName.c_str(), &todir_wcc.before.attributes);
+	fromdir_wcc.before.attributesFollow = GetFileAttributesForNFS(dirFromName, &fromdir_wcc.before.attributes);
+	todir_wcc.before.attributesFollow = GetFileAttributesForNFS(dirToName, &todir_wcc.before.attributes);
 
-	if (FileExists(pathTo)) {
-		DWORD fileAttr = GetFileAttributes(pathTo);
-		if ((fileAttr & FILE_ATTRIBUTE_DIRECTORY) && (fileAttr & FILE_ATTRIBUTE_REPARSE_POINT)) {
+	if (FileExists(pathTo))
+	{
+		DWORD fileAttr = GetFileAttributes(pathTo.c_str());
+		if ((fileAttr & FILE_ATTRIBUTE_DIRECTORY) && (fileAttr & FILE_ATTRIBUTE_REPARSE_POINT))
+		{
 			returnCode = RemoveFolder(pathTo);
-			if (returnCode != 0) {
-				if (returnCode == ERROR_DIR_NOT_EMPTY) {
+			if (returnCode != 0)
+			{
+				if (returnCode == ERROR_DIR_NOT_EMPTY)
+				{
 					stat = NFS3ERR_NOTEMPTY;
 				}
-				else {
+				else
+				{
 					stat = NFS3ERR_IO;
 				}
 			}
 		}
-		else {
-			if (!RemoveFile(pathTo)) {
+		else
+		{
+			if (!RemoveFile(pathTo))
+			{
 				stat = NFS3ERR_IO;
 			}
 		}
 	}
 
-	if (stat == NFS3_OK) {
+	if (stat == NFS3_OK)
+	{
 		errno_t errorNumber = RenameDirectory(pathFrom, pathTo);
 
-		if (errorNumber != 0) {
+		if (errorNumber != 0)
+		{
 			char buffer[BUFFER_SIZE];
 			strerror_s(buffer, BUFFER_SIZE, errorNumber);
-			PrintLog(buffer);
 
-			if (errorNumber == 13) {
+			if (errorNumber == 13)
+			{
 				stat = NFS3ERR_ACCES;
 			}
-			else {
+			else
+			{
 				stat = NFS3ERR_IO;
 			}
 		}
 	}
 
-	fromdir_wcc.after.attributesFollow = GetFileAttributesForNFS((char*)dirFromName.c_str(), &fromdir_wcc.after.attributes);
-	todir_wcc.after.attributesFollow = GetFileAttributesForNFS((char*)dirToName.c_str(), &todir_wcc.after.attributes);
+	fromdir_wcc.after.attributesFollow = GetFileAttributesForNFS(dirFromName, &fromdir_wcc.after.attributes);
+	todir_wcc.after.attributesFollow = GetFileAttributesForNFS(dirToName, &todir_wcc.after.attributes);
 
-	Write(&stat);
-	Write(&fromdir_wcc);
-	Write(&todir_wcc);
+	Write(outStream, stat);
+	Write(outStream, fromdir_wcc);
+	Write(outStream, todir_wcc);
 
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " RENAME '" << dirFromName
+		<< "' to '" << dirToName << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureLINK(void)
+NfsStat3 NFS3Prog::ProcedureLINK(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	PrintLog("LINK");
-	std::string path;
 	DirOpArgs3 link;
 	std::string dirName;
 	std::string fileName;
 	NfsStat3 stat;
 	PostOpAttr objAttributes;
-	WccData dir_wcc;
+	WccData dirWcc;
 
-	bool validHandle = GetPath(path);
-	const char* cStr = validHandle ? path.c_str() : NULL;
-	ReadDirectory(dirName, fileName);
+	std::string path = GetPath(inStream);
+	ReadDirectory(inStream, dirName, fileName);
 
-	char* linkFullPath = GetFullPath(dirName, fileName);
+	std::string linkFullPath = GetFullPath(dirName, fileName);
 
-	//TODO: Improve checks here, cStr may be NULL because handle is invalid
-	if (CreateHardLink(linkFullPath, cStr, NULL) == 0) {
+	if (CreateHardLink(linkFullPath.c_str(), path.c_str(), NULL) == 0)
+	{
 		stat = NFS3ERR_IO;
 	}
 	stat = CheckFile(linkFullPath);
-	if (stat == NFS3_OK) {
-		objAttributes.attributesFollow = GetFileAttributesForNFS(cStr, &objAttributes.attributes);
+	if (stat == NFS3_OK)
+	{
+		objAttributes.attributesFollow = GetFileAttributesForNFS(path, &objAttributes.attributes);
 
-		if (!objAttributes.attributesFollow) {
+		if (!objAttributes.attributesFollow)
+		{
 			stat = NFS3ERR_IO;
 		}
 	}
 
-	dir_wcc.after.attributesFollow = GetFileAttributesForNFS((char*)dirName.c_str(), &dir_wcc.after.attributes);
+	dirWcc.after.attributesFollow = GetFileAttributesForNFS(dirName, &dirWcc.after.attributes);
 
-	Write(&stat);
-	Write(&objAttributes);
-	Write(&dir_wcc);
+	Write(outStream, stat);
+	Write(outStream, objAttributes);
+	Write(outStream, dirWcc);
 
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " LINK '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureREADDIR(void)
+NfsStat3 NFS3Prog::ProcedureREADDIR(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	std::string path;
 	Cookie3 cookie;
 	CookieVerf3 cookieverf;
 	Count3 count;
-	PostOpAttr dir_attributes;
+	PostOpAttr dirAttributes;
 	FileId3 fileid;
 	NFSv3Filename name;
 	bool eof;
@@ -1484,54 +1733,60 @@ NfsStat3 NFS3Prog::ProcedureREADDIR(void)
 	struct _finddata_t fileinfo;
 	unsigned int i, j;
 
-	PrintLog("READDIR");
-	bool validHandle = GetPath(path);
-	const char* cStr = validHandle ? path.c_str() : NULL;
-	Read(&cookie);
-	Read(&cookieverf);
-	Read(&count);
-	stat = CheckFile(cStr);
+	std::string path = GetPath(inStream);
+	Read(inStream, cookie);
+	Read(inStream, cookieverf);
+	Read(inStream, count);
+	stat = CheckFile(path);
 
-	if (stat == NFS3_OK) {
-		dir_attributes.attributesFollow = GetFileAttributesForNFS(cStr, &dir_attributes.attributes);
+	if (stat == NFS3_OK)
+	{
+		dirAttributes.attributesFollow = GetFileAttributesForNFS(path, &dirAttributes.attributes);
 
-		if (!dir_attributes.attributesFollow) {
+		if (!dirAttributes.attributesFollow)
+		{
 			stat = NFS3ERR_IO;
 		}
 	}
 
-	Write(&stat);
-	Write(&dir_attributes);
+	Write(outStream, stat);
+	Write(outStream, dirAttributes);
 
-	if (stat == NFS3_OK) {
-		Write(&cookieverf);
-		sprintf_s(filePath, "%s\\*", cStr);
+	if (stat == NFS3_OK)
+	{
+		Write(outStream, cookieverf);
+		sprintf_s(filePath, "%s\\*", path.c_str());
 		eof = true;
 		handle = _findfirst(filePath, &fileinfo);
 		bFollows = true;
 
-		if (handle) {
+		if (handle)
+		{
 			nFound = 0;
 
-			for (i = (unsigned int)cookie; i > 0; i--) {
+			for (i = (unsigned int)cookie; i > 0; i--)
+			{
 				nFound = _findnext(handle, &fileinfo);
 			}
 
 			// TODO: Implement this workaround correctly with the
 			// count variable and not a fixed threshold of 10
-			if (nFound == 0) {
+			if (nFound == 0)
+			{
 				j = 10;
 
-				do {
-					Write(&bFollows); //value follows
-					sprintf_s(filePath, "%s\\%s", cStr, fileinfo.name);
+				do
+				{
+					Write(outStream, bFollows); //value follows
+					sprintf_s(filePath, "%s\\%s", path.c_str(), fileinfo.name);
 					fileid = GetFileID(filePath);
-					Write(&fileid); //file id
+					Write(outStream, fileid); //file id
 					name.Set(fileinfo.name);
-					Write(&name); //name
+					Write(outStream, name); //name
 					++cookie;
-					Write(&cookie); //cookie
-					if (--j == 0) {
+					Write(outStream, cookie); //cookie
+					if (--j == 0)
+					{
 						eof = false;
 						break;
 					}
@@ -1542,25 +1797,25 @@ NfsStat3 NFS3Prog::ProcedureREADDIR(void)
 		}
 
 		bFollows = false;
-		Write(&bFollows);
-		Write(&eof); //eof
+		Write(outStream, bFollows);
+		Write(outStream, eof); //eof
 	}
 
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " READDIR '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureREADDIRPLUS(void)
+NfsStat3 NFS3Prog::ProcedureREADDIRPLUS(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	std::string path;
 	Cookie3 cookie;
 	CookieVerf3 cookieverf;
 	Count3 dircount, maxcount;
-	PostOpAttr dir_attributes;
+	PostOpAttr dirAttributes;
 	FileId3 fileid;
 	NFSv3Filename name;
-	PostOpAttr name_attributes;
-	PostOpFH3 name_handle;
+	PostOpAttr nameAttributes;
+	PostOpFH3 nameHandle;
 	bool eof;
 	NfsStat3 stat;
 	char filePath[MAXPATHLEN];
@@ -1570,58 +1825,64 @@ NfsStat3 NFS3Prog::ProcedureREADDIRPLUS(void)
 	unsigned int i, j;
 	bool bFollows;
 
-	PrintLog("READDIRPLUS");
-	bool validHandle = GetPath(path);
-	const char* cStr = validHandle ? path.c_str() : NULL;
-	Read(&cookie);
-	Read(&cookieverf);
-	Read(&dircount);
-	Read(&maxcount);
-	stat = CheckFile(cStr);
+	std::string path = GetPath(inStream);
+	Read(inStream, cookie);
+	Read(inStream, cookieverf);
+	Read(inStream, dircount);
+	Read(inStream, maxcount);
+	stat = CheckFile(path);
 
-	if (stat == NFS3_OK) {
-		dir_attributes.attributesFollow = GetFileAttributesForNFS(cStr, &dir_attributes.attributes);
+	if (stat == NFS3_OK)
+	{
+		dirAttributes.attributesFollow = GetFileAttributesForNFS(path, &dirAttributes.attributes);
 
-		if (!dir_attributes.attributesFollow) {
+		if (!dirAttributes.attributesFollow)
+		{
 			stat = NFS3ERR_IO;
 		}
 	}
 
-	Write(&stat);
-	Write(&dir_attributes);
+	Write(outStream, stat);
+	Write(outStream, dirAttributes);
 
-	if (stat == NFS3_OK) {
-		Write(&cookieverf);
-		sprintf_s(filePath, "%s\\*", cStr);
+	if (stat == NFS3_OK)
+	{
+		Write(outStream, cookieverf);
+		sprintf_s(filePath, "%s\\*", path.c_str());
 		handle = _findfirst(filePath, &fileinfo);
 		eof = true;
 
-		if (handle) {
+		if (handle)
+		{
 			nFound = 0;
 
-			for (i = (unsigned int)cookie; i > 0; i--) {
+			for (i = (unsigned int)cookie; i > 0; i--)
+			{
 				nFound = _findnext(handle, &fileinfo);
 			}
 
-			if (nFound == 0) {
+			if (nFound == 0)
+			{
 				bFollows = true;
 				j = 10;
 
-				do {
-					Write(&bFollows); //value follows
-					sprintf_s(filePath, "%s\\%s", cStr, fileinfo.name);
+				do
+				{
+					Write(outStream, bFollows); //value follows
+					sprintf_s(filePath, "%s\\%s", path.c_str(), fileinfo.name);
 					fileid = GetFileID(filePath);
-					Write(&fileid); //file id
+					Write(outStream, fileid); //file id
 					name.Set(fileinfo.name);
-					Write(&name); //name
+					Write(outStream, name); //name
 					++cookie;
-					Write(&cookie); //cookie
-					name_attributes.attributesFollow = GetFileAttributesForNFS(filePath, &name_attributes.attributes);
-					Write(&name_attributes);
-					name_handle.handleFollows = GetFileHandle(filePath, &name_handle.handle);
-					Write(&name_handle);
+					Write(outStream, cookie); //cookie
+					nameAttributes.attributesFollow = GetFileAttributesForNFS(filePath, &nameAttributes.attributes);
+					Write(outStream, nameAttributes);
+					nameHandle.handleFollows = GetFileHandle(filePath, &nameHandle.handle);
+					Write(outStream, nameHandle);
 
-					if (--j == 0) {
+					if (--j == 0)
+					{
 						eof = false;
 						break;
 					}
@@ -1632,34 +1893,33 @@ NfsStat3 NFS3Prog::ProcedureREADDIRPLUS(void)
 		}
 
 		bFollows = false;
-		Write(&bFollows); //value follows
-		Write(&eof); //eof
+		Write(outStream, bFollows); //value follows
+		Write(outStream, eof); //eof
 	}
 
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " READDIRPLUS '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureFSSTAT(void)
+NfsStat3 NFS3Prog::ProcedureFSSTAT(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	std::string path;
-	PostOpAttr objAttributes;
-	Size3 tbytes, fbytes, abytes, tfiles, ffiles, afiles;
-	uint32_t invarsec;
+	PostOpAttr objAttributes{};
+	Size3 tbytes = 0, fbytes = 0, abytes = 0, tfiles = 0, ffiles = 0, afiles = 0;
+	uint32_t invarsec = 0;
 
 	NfsStat3 stat;
 
-	PrintLog("FSSTAT");
-	bool validHandle = GetPath(path);
-	const char* cStr = validHandle ? path.c_str() : NULL;
-	stat = CheckFile(cStr);
+	std::string path = GetPath(inStream);
+	stat = CheckFile(path);
 
-	if (stat == NFS3_OK) {
-		objAttributes.attributesFollow = GetFileAttributesForNFS(cStr, &objAttributes.attributes);
+	if (stat == NFS3_OK)
+	{
+		objAttributes.attributesFollow = GetFileAttributesForNFS(path, &objAttributes.attributes);
 
 		if (objAttributes.attributesFollow
-			&& GetDiskFreeSpaceEx(cStr, (PULARGE_INTEGER)&fbytes, (PULARGE_INTEGER)&tbytes, (PULARGE_INTEGER)&abytes)
-			) {
+			&& GetDiskFreeSpaceEx(path.c_str(), (PULARGE_INTEGER)&fbytes, (PULARGE_INTEGER)&tbytes, (PULARGE_INTEGER)&abytes))
+		{
 			//tfiles = 99999999999;
 			//ffiles = 99999999999;
 			//afiles = 99999999999;
@@ -1670,42 +1930,43 @@ NfsStat3 NFS3Prog::ProcedureFSSTAT(void)
 		}
 	}
 
-	Write(&stat);
-	Write(&objAttributes);
+	Write(outStream, stat);
+	Write(outStream, objAttributes);
 
-	if (stat == NFS3_OK) {
-		Write(&tbytes);
-		Write(&fbytes);
-		Write(&abytes);
-		Write(&tfiles);
-		Write(&ffiles);
-		Write(&afiles);
-		Write(&invarsec);
+	if (stat == NFS3_OK)
+	{
+		Write(outStream, tbytes);
+		Write(outStream, fbytes);
+		Write(outStream, abytes);
+		Write(outStream, tfiles);
+		Write(outStream, ffiles);
+		Write(outStream, afiles);
+		Write(outStream, invarsec);
 	}
 
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " FSSTAT '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureFSINFO(void)
+NfsStat3 NFS3Prog::ProcedureFSINFO(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	std::string path;
-	PostOpAttr objAttributes;
-	uint32_t rtmax, rtpref, rtmult, wtmax, wtpref, wtmult, dtpref;
-	Size3 maxfilesize;
-	NFSTime3 time_delta;
-	uint32_t properties;
-	NfsStat3 stat;
+	PostOpAttr objAttributes{};
+	uint32_t rtmax = 0, rtpref = 0, rtmult = 0, wtmax = 0, wtpref = 0, wtmult = 0, dtpref = 0;
+	Size3 maxfilesize = 0;
+	NFSTime3 timeDelta{};
+	uint32_t properties = 0;
+	NfsStat3 stat{};
 
-	PrintLog("FSINFO");
-	bool validHandle = GetPath(path);
-	const char* cStr = validHandle ? path.c_str() : NULL;
-	stat = CheckFile(cStr);
+	std::string path = GetPath(inStream);
+	stat = CheckFile(path);
 
-	if (stat == NFS3_OK) {
-		objAttributes.attributesFollow = GetFileAttributesForNFS(cStr, &objAttributes.attributes);
+	if (stat == NFS3_OK)
+	{
+		objAttributes.attributesFollow = GetFileAttributesForNFS(path, &objAttributes.attributes);
 
-		if (objAttributes.attributesFollow) {
+		if (objAttributes.attributesFollow)
+		{
 			rtmax = 65536;
 			rtpref = 32768;
 			rtmult = 4096;
@@ -1714,447 +1975,187 @@ NfsStat3 NFS3Prog::ProcedureFSINFO(void)
 			wtmult = 4096;
 			dtpref = 8192;
 			maxfilesize = 0x7FFFFFFFFFFFFFFF;
-			time_delta.seconds = 1;
-			time_delta.nseconds = 0;
+			timeDelta.seconds = 1;
+			timeDelta.nseconds = 0;
 			properties = FSF3_LINK | FSF3_SYMLINK | FSF3_CANSETTIME;
 		}
-		else {
+		else
+		{
 			stat = NFS3ERR_SERVERFAULT;
 		}
 	}
 
-	Write(&stat);
-	Write(&objAttributes);
+	Write(outStream, stat);
+	Write(outStream, objAttributes);
 
-	if (stat == NFS3_OK) {
-		Write(&rtmax);
-		Write(&rtpref);
-		Write(&rtmult);
-		Write(&wtmax);
-		Write(&wtpref);
-		Write(&wtmult);
-		Write(&dtpref);
-		Write(&maxfilesize);
-		Write(&time_delta);
-		Write(&properties);
+	if (stat == NFS3_OK)
+	{
+		Write(outStream, rtmax);
+		Write(outStream, rtpref);
+		Write(outStream, rtmult);
+		Write(outStream, wtmax);
+		Write(outStream, wtpref);
+		Write(outStream, wtmult);
+		Write(outStream, dtpref);
+		Write(outStream, maxfilesize);
+		Write(outStream, timeDelta);
+		Write(outStream, properties);
 	}
 
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " FSINFO '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedurePATHCONF(void)
+NfsStat3 NFS3Prog::ProcedurePATHCONF(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	std::string path;
-	PostOpAttr objAttributes;
-	NfsStat3 stat;
-	uint32_t linkmax, name_max;
-	bool no_trunc, chown_restricted, case_insensitive, case_preserving;
+	PostOpAttr objAttributes{};
+	NfsStat3 stat{};
+	uint32_t linkMax = 0, nameMax = 0;
+	bool noTrunc = false, chownRestricted = false, caseInsensitive = false, casePreserving = false;
 
-	PrintLog("PATHCONF");
-	bool validHandle = GetPath(path);
-	const char* cStr = validHandle ? path.c_str() : NULL;
-	stat = CheckFile(cStr);
+	std::string path = GetPath(inStream);
+	stat = CheckFile(path);
 
-	if (stat == NFS3_OK) {
-		objAttributes.attributesFollow = GetFileAttributesForNFS(cStr, &objAttributes.attributes);
+	if (stat == NFS3_OK)
+	{
+		objAttributes.attributesFollow = GetFileAttributesForNFS(path, &objAttributes.attributes);
 
-		if (objAttributes.attributesFollow) {
-			linkmax = 1023;
-			name_max = 255;
-			no_trunc = true;
-			chown_restricted = true;
-			case_insensitive = true;
-			case_preserving = true;
+		if (objAttributes.attributesFollow)
+		{
+			linkMax = 1023;
+			nameMax = 255;
+			noTrunc = true;
+			chownRestricted = true;
+			caseInsensitive = true;
+			casePreserving = true;
 		}
-		else {
+		else
+		{
 			stat = NFS3ERR_SERVERFAULT;
 		}
 	}
 
-	Write(&stat);
-	Write(&objAttributes);
+	Write(outStream, stat);
+	Write(outStream, objAttributes);
 
-	if (stat == NFS3_OK) {
-		Write(&linkmax);
-		Write(&name_max);
-		Write(&no_trunc);
-		Write(&chown_restricted);
-		Write(&case_insensitive);
-		Write(&case_preserving);
+	if (stat == NFS3_OK)
+	{
+		Write(outStream, linkMax);
+		Write(outStream, nameMax);
+		Write(outStream, noTrunc);
+		Write(outStream, chownRestricted);
+		Write(outStream, caseInsensitive);
+		Write(outStream, casePreserving);
 	}
 
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " PATHCONF '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureCOMMIT(void)
+NfsStat3 NFS3Prog::ProcedureCOMMIT(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
 	std::string path;
 	int handleId;
 	Offset3 offset;
 	Count3 count;
-	WccData file_wcc;
+	WccData fileWcc;
 	NfsStat3 stat;
 	NFSv3FileHandle file;
 	WriteVerf3 verf;
 
-	PrintLog("COMMIT");
-	Read(&file);
-	bool validHandle = GetFilePath(file.contents, path);
-	const char* cStr = validHandle ? path.c_str() : NULL;
-
-	if (validHandle) {
-		PrintLog(" %s ", path.c_str());
-	}
+	Read(inStream, file);
+	GetFilePath(file.contents, path);
 
 	// offset and count are unused
 	// offset never was anything else than 0 in my tests
 	// count does not matter in the way COMMIT is implemented here
 	// to fulfill the spec this should be improved
-	Read(&offset);
-	Read(&count);
+	Read(inStream, offset);
+	Read(inStream, count);
 
-	file_wcc.before.attributesFollow = GetFileAttributesForNFS(cStr, &file_wcc.before.attributes);
+	fileWcc.before.attributesFollow = GetFileAttributesForNFS(path, &fileWcc.before.attributes);
 
 	handleId = *(unsigned int*)file.contents;
 
-	if (unstableStorageFile.count(handleId) != 0) {
-		if (unstableStorageFile[handleId] != NULL) {
+	if (unstableStorageFile.count(handleId) != 0)
+	{
+		if (unstableStorageFile[handleId] != NULL)
+		{
 			fclose(unstableStorageFile[handleId]);
 			unstableStorageFile.erase(handleId);
 			stat = NFS3_OK;
 		}
-		else {
+		else
+		{
 			stat = NFS3ERR_IO;
 		}
 	}
-	else {
+	else
+	{
 		stat = NFS3_OK;
 	}
 
-	file_wcc.after.attributesFollow = GetFileAttributesForNFS(cStr, &file_wcc.after.attributes);
+	fileWcc.after.attributesFollow = GetFileAttributesForNFS(path, &fileWcc.after.attributes);
 
-	Write(&stat);
-	Write(&file_wcc);
+	Write(outStream, stat);
+	Write(outStream, fileWcc);
 	// verf should be the timestamp the server startet to notice reboots
 	verf = 0;
-	Write(&verf);
+	Write(outStream, verf);
 
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " COMMIT '" << path << "': " << NfsStatToString(stat);
 	return stat;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::ProcedureNOIMP(void)
+NfsStat3 NFS3Prog::ProcedureNOIMP(IInputStream&, IOutputStream&, RPCParam& param)
 {
-	PrintLog("NOIMP");
-	m_result = PRC_NOTIMP;
-
+	BOOST_LOG_TRIVIAL(debug) << "NFS3 " << param.remoteAddr << " NOIMP";
 	return NFS3_OK;
 }
 
 /////////////////////////////////////////////////////////////////////
-void NFS3Prog::Read(bool* pBool)
+std::string NFS3Prog::GetPath(IInputStream& inStream)
 {
-	uint32_t b;
+	NFSv3FileHandle object{};
+	Read(inStream, object);
 
-	if (m_inStream->Read(&b) < sizeof(uint32_t)) {
-		throw __LINE__;
+	std::string path;
+	if (!GetFilePath(object.contents, path))
+	{
+		throw std::runtime_error("file handle is invalid");
 	}
-
-	*pBool = b == 1;
+	return path;
 }
 
 /////////////////////////////////////////////////////////////////////
-void NFS3Prog::Read(uint32_t* pUint32)
+bool NFS3Prog::ReadDirectory(IInputStream& inStream, std::string& dirName, std::string& fileName)
 {
-	if (m_inStream->Read(pUint32) < sizeof(uint32_t)) {
-		throw __LINE__;
-	}
-}
+	DirOpArgs3 fileRequest{};
+	Read(inStream, fileRequest);
 
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Read(uint64_t* pUint64)
-{
-	if (m_inStream->Read8(pUint64) < sizeof(uint64_t)) {
-		throw __LINE__;
-	}
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Read(SAttr3* pAttr)
-{
-	Read(&pAttr->mode.setIt);
-
-	if (pAttr->mode.setIt) {
-		Read(&pAttr->mode.mode);
-	}
-
-	Read(&pAttr->uid.setIt);
-
-	if (pAttr->uid.setIt) {
-		Read(&pAttr->uid.uid);
-	}
-
-	Read(&pAttr->gid.setIt);
-
-	if (pAttr->gid.setIt) {
-		Read(&pAttr->gid.gid);
-	}
-
-	Read(&pAttr->size.setIt);
-
-	if (pAttr->size.setIt) {
-		Read(&pAttr->size.size);
-	}
-
-	Read(&pAttr->atime.setIt);
-
-	if (pAttr->atime.setIt == SET_TO_CLIENT_TIME) {
-		Read(&pAttr->atime.atime);
-	}
-
-	Read(&pAttr->mtime.setIt);
-
-	if (pAttr->mtime.setIt == SET_TO_CLIENT_TIME) {
-		Read(&pAttr->mtime.mtime);
-	}
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Read(SAttrGuard3* pGuard)
-{
-	Read(&pGuard->check);
-
-	if (pGuard->check) {
-		Read(&pGuard->objCtime);
-	}
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Read(DirOpArgs3* pDir)
-{
-	Read(&pDir->dir);
-	Read(&pDir->name);
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Read(Opaque* pOpaque)
-{
-	uint32_t len, byte;
-
-	Read(&len);
-	pOpaque->SetSize(len);
-
-	if (m_inStream->Read(pOpaque->contents, len) < len) {
-		throw __LINE__;
-	}
-
-	len = 4 - (len & 3);
-
-	if (len != 4) {
-		if (m_inStream->Read(&byte, len) < len) {
-			throw __LINE__;
-		}
-	}
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Read(NFSTime3* pTime)
-{
-	Read(&pTime->seconds);
-	Read(&pTime->nseconds);
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Read(CreateHow3* pHow)
-{
-	Read(&pHow->mode);
-
-	if (pHow->mode == UNCHECKED || pHow->mode == GUARDED) {
-		Read(&pHow->objAttributes);
-	}
-	else {
-		Read(&pHow->verf);
-	}
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Read(SymlinkData3* pSymlink)
-{
-	Read(&pSymlink->symlinkAttributes);
-	Read(&pSymlink->symlinkData);
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Write(bool* pBool)
-{
-	m_outStream->Write(*pBool ? 1 : 0);
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Write(uint32_t* pUint32)
-{
-	m_outStream->Write(*pUint32);
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Write(uint64_t* pUint64)
-{
-	m_outStream->Write8(*pUint64);
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Write(FAttr3* pAttr)
-{
-	Write(&pAttr->type);
-	Write(&pAttr->mode);
-	Write(&pAttr->nlink);
-	Write(&pAttr->uid);
-	Write(&pAttr->gid);
-	Write(&pAttr->size);
-	Write(&pAttr->used);
-	Write(&pAttr->rdev);
-	Write(&pAttr->fsid);
-	Write(&pAttr->fileid);
-	Write(&pAttr->atime);
-	Write(&pAttr->mtime);
-	Write(&pAttr->ctime);
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Write(Opaque* pOpaque)
-{
-	uint32_t len, byte;
-
-	Write(&pOpaque->length);
-	m_outStream->Write(pOpaque->contents, pOpaque->length);
-	len = pOpaque->length & 3;
-
-	if (len != 0) {
-		byte = 0;
-		m_outStream->Write(&byte, 4 - len);
-	}
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Write(WccData* pWcc)
-{
-	Write(&pWcc->before);
-	Write(&pWcc->after);
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Write(PostOpAttr* pAttr)
-{
-	Write(&pAttr->attributesFollow);
-
-	if (pAttr->attributesFollow) {
-		Write(&pAttr->attributes);
-	}
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Write(PreOpAttr* pAttr)
-{
-	Write(&pAttr->attributesFollow);
-
-	if (pAttr->attributesFollow) {
-		Write(&pAttr->attributes);
-	}
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Write(PostOpFH3* pObj)
-{
-	Write(&pObj->handleFollows);
-
-	if (pObj->handleFollows) {
-		Write(&pObj->handle);
-	}
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Write(NFSTime3* pTime)
-{
-	Write(&pTime->seconds);
-	Write(&pTime->nseconds);
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Write(SpecData3* pSpec)
-{
-	Write(&pSpec->specdata1);
-	Write(&pSpec->specdata2);
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFS3Prog::Write(WccAttr* pAttr)
-{
-	Write(&pAttr->size);
-	Write(&pAttr->mtime);
-	Write(&pAttr->ctime);
-}
-
-/////////////////////////////////////////////////////////////////////
-bool NFS3Prog::GetPath(std::string& path)
-{
-	NFSv3FileHandle object;
-
-	Read(&object);
-	bool valid = GetFilePath(object.contents, path);
-	if (valid) {
-		PrintLog(" %s ", path.c_str());
-	}
-	else {
-		PrintLog(" File handle is invalid ");
-	}
-
-	return valid;
-}
-
-/////////////////////////////////////////////////////////////////////
-bool NFS3Prog::ReadDirectory(std::string& dirName, std::string& fileName)
-{
-	DirOpArgs3 fileRequest;
-	Read(&fileRequest);
-
-	if (GetFilePath(fileRequest.dir.contents, dirName)) {
+	if (GetFilePath(fileRequest.dir.contents, dirName))
+	{
 		fileName = std::string(fileRequest.name.name);
 		return true;
 	}
-	else {
-		return false;
-	}
 
-	//PrintLog(" %s | %s ", dirName.c_str(), fileName.c_str());
+	return false;
 }
 
 /////////////////////////////////////////////////////////////////////
-char* NFS3Prog::GetFullPath(std::string& dirName, std::string& fileName)
+std::string NFS3Prog::GetFullPath(const std::string& dirName, const std::string& fileName)
 {
-	//TODO: Return std::string
-	static char fullPath[MAXPATHLEN + 1];
-
-	if (dirName.size() + 1 + fileName.size() > MAXPATHLEN) {
-		return NULL;
-	}
-
-	sprintf_s(fullPath, "%s\\%s", dirName.c_str(), fileName.c_str()); //concate path and filename
-	PrintLog(" %s ", fullPath);
-
-	return fullPath;
+	return dirName + "\\" + fileName;
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::CheckFile(const char* fullPath)
+NfsStat3 NFS3Prog::CheckFile(const std::string& fullPath)
 {
-	if (fullPath == NULL) {
-		return NFS3ERR_STALE;
-	}
-
-	//if (!FileExists(fullPath)) {
-	if (_access(fullPath, 0) != 0) {
+	if (_access(fullPath.c_str(), 0) != 0)
+	{
 		return NFS3ERR_NOENT;
 	}
 
@@ -2162,14 +2163,16 @@ NfsStat3 NFS3Prog::CheckFile(const char* fullPath)
 }
 
 /////////////////////////////////////////////////////////////////////
-NfsStat3 NFS3Prog::CheckFile(const char* directory, const char* fullPath)
+NfsStat3 NFS3Prog::CheckFile(const std::string& directory, const std::string& fullPath)
 {
 	// FileExists will not work for the root of a drive, e.g. \\?\D:\, therefore check if it is a drive root with GetDriveType
-	if (directory == NULL || (!FileExists(directory) && GetDriveType(directory) < 2) || fullPath == NULL) {
+	if (!FileExists(directory) && GetDriveType(directory.c_str()) < 2)
+	{
 		return NFS3ERR_STALE;
 	}
 
-	if (!FileExists(fullPath)) {
+	if (!FileExists(fullPath))
+	{
 		return NFS3ERR_NOENT;
 	}
 
@@ -2177,15 +2180,18 @@ NfsStat3 NFS3Prog::CheckFile(const char* directory, const char* fullPath)
 }
 
 /////////////////////////////////////////////////////////////////////
-bool NFS3Prog::GetFileHandle(const char* path, NFSv3FileHandle* pObject)
+bool NFS3Prog::GetFileHandle(const std::string& path, NFSv3FileHandle* pObject)
 {
-	if (!::GetFileHandle(path)) {
-		PrintLog("no filehandle(path %s)", path);
+	const auto handle = ::GetFileHandle(path);
+	if (!handle)
+	{
+		BOOST_LOG_TRIVIAL(error) << "no file handle for path " << path;
 		return false;
 	}
+
 	auto err = memcpy_s(pObject->contents, NFS3_FHSIZE, ::GetFileHandle(path), pObject->length);
 	if (err != 0) {
-		PrintLog(" err %d ", err);
+		BOOST_LOG_TRIVIAL(error) << "failed to copy file handle for path " << path << ": errno=" << err;
 		return false;
 	}
 
@@ -2193,15 +2199,12 @@ bool NFS3Prog::GetFileHandle(const char* path, NFSv3FileHandle* pObject)
 }
 
 /////////////////////////////////////////////////////////////////////
-bool NFS3Prog::GetFileAttributesForNFS(const char* path, WccAttr* pAttr)
+bool NFS3Prog::GetFileAttributesForNFS(const std::string& path, WccAttr* pAttr)
 {
 	struct stat data;
 
-	if (path == NULL) {
-		return false;
-	}
-
-	if (stat(path, &data) != 0) {
+	if (stat(path.c_str(), &data) != 0)
+	{
 		return false;
 	}
 
@@ -2218,48 +2221,48 @@ bool NFS3Prog::GetFileAttributesForNFS(const char* path, WccAttr* pAttr)
 }
 
 /////////////////////////////////////////////////////////////////////
-bool NFS3Prog::GetFileAttributesForNFS(const char* path, FAttr3* pAttr)
+bool NFS3Prog::GetFileAttributesForNFS(const std::string& path, FAttr3* pAttr)
 {
-	DWORD fileAttr;
-	BY_HANDLE_FILE_INFORMATION lpFileInformation;
-	HANDLE hFile;
-	DWORD dwFlagsAndAttributes;
-
-	fileAttr = GetFileAttributes(path);
-
-	if (path == NULL || fileAttr == INVALID_FILE_ATTRIBUTES)
+	const DWORD fileAttr = GetFileAttributes(path.c_str());
+	if (fileAttr == INVALID_FILE_ATTRIBUTES)
 	{
 		return false;
 	}
 
-	dwFlagsAndAttributes = 0;
-	if (fileAttr & FILE_ATTRIBUTE_DIRECTORY) {
+	DWORD dwFlagsAndAttributes = 0;
+	if (fileAttr & FILE_ATTRIBUTE_DIRECTORY)
+	{
 		pAttr->type = NF3DIR;
 		dwFlagsAndAttributes = FILE_ATTRIBUTE_DIRECTORY | FILE_FLAG_BACKUP_SEMANTICS;
 	}
-	else if (fileAttr & FILE_ATTRIBUTE_ARCHIVE) {
+	else if (fileAttr & FILE_ATTRIBUTE_ARCHIVE)
+	{
 		pAttr->type = NF3REG;
 		dwFlagsAndAttributes = FILE_ATTRIBUTE_ARCHIVE | FILE_FLAG_OVERLAPPED;
 	}
-	else if (fileAttr & FILE_ATTRIBUTE_NORMAL) {
+	else if (fileAttr & FILE_ATTRIBUTE_NORMAL)
+	{
 		pAttr->type = NF3REG;
 		dwFlagsAndAttributes = FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED;
 	}
-	else {
+	else
+	{
 		pAttr->type = 0;
 	}
 
-	if (fileAttr & FILE_ATTRIBUTE_REPARSE_POINT) {
+	if (fileAttr & FILE_ATTRIBUTE_REPARSE_POINT)
+	{
 		pAttr->type = NF3LNK;
 		dwFlagsAndAttributes = FILE_ATTRIBUTE_REPARSE_POINT | FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS;
 	}
 
-	hFile = CreateFile(path, FILE_READ_EA, FILE_SHARE_READ, NULL, OPEN_EXISTING, dwFlagsAndAttributes, NULL);
-
-	if (hFile == INVALID_HANDLE_VALUE) {
+	const HANDLE hFile = CreateFile(path.c_str(), FILE_READ_EA, FILE_SHARE_READ, NULL, OPEN_EXISTING, dwFlagsAndAttributes, NULL);
+	if (hFile == INVALID_HANDLE_VALUE)
+	{
 		return false;
 	}
 
+	BY_HANDLE_FILE_INFORMATION lpFileInformation;
 	GetFileInformationByHandle(hFile, &lpFileInformation);
 	CloseHandle(hFile);
 	pAttr->mode = 0;
@@ -2302,7 +2305,7 @@ bool NFS3Prog::GetFileAttributesForNFS(const char* path, FAttr3* pAttr)
 UINT32 NFS3Prog::FileTimeToPOSIX(FILETIME ft)
 {
 	// takes the last modified date
-	LARGE_INTEGER date, adjust;
+	LARGE_INTEGER date{}, adjust{};
 	date.HighPart = ft.dwHighDateTime;
 	date.LowPart = ft.dwLowDateTime;
 

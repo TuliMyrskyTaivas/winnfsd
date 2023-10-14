@@ -8,23 +8,18 @@
 #define ICENFSD_NFSPROG_H
 
 #include "RPCProg.h"
-#include <memory>
-
-class NFS3Prog;
 
 class NFSProg : public RPCProg
 {
- public:
-    NFSProg();
-    ~NFSProg();
+public:
+	NFSProg();
+	~NFSProg();
 
-    void SetUserID(unsigned int uid, unsigned int gid);
-    int Process(IInputStream *inStream, IOutputStream *outStream, ProcessParam *param);
-    void EnableLog(bool enableLog);
+	void SetUserID(unsigned int uid, unsigned int gid);
+	int Process(IInputStream& inStream, IOutputStream& outStream, RPCParam& param) override;
 
 private:
-    unsigned int m_uid, m_gid;
-    std::unique_ptr<NFS3Prog> m_nfs3;
+	unsigned int m_uid, m_gid;
 };
 
 #endif // ICENFSD_NFSPROG_H

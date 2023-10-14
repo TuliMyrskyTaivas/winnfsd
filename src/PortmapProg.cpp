@@ -7,6 +7,8 @@
 #include "PortmapProg.h"
 #include "InputStream.h"
 #include "OutputStream.h"
+
+#include <boost/log/trivial.hpp>
 #include <cstring>
 
 #define MIN_PROG_NUM 100000
@@ -48,94 +50,77 @@ struct PortmapHeader
 	uint32_t port;
 };
 
-typedef int (PortmapProg::* PPROC)();
-
 /////////////////////////////////////////////////////////////////////
-PortmapProg::PortmapProg()
-	: RPCProg()
-	, m_inStream(nullptr)
-	, m_outStream(nullptr)
-	, m_param(nullptr)
+void PortmapProg::Set(uint32_t prog, uint32_t port)
 {
-	memset(m_portTable, 0, PORT_NUM * sizeof(int));
+	m_portTable[prog] = port;
 }
 
 /////////////////////////////////////////////////////////////////////
-void PortmapProg::Set(unsigned long prog, unsigned long port)
+int PortmapProg::Process(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	m_portTable[prog - MIN_PROG_NUM] = port;  //set port for program
-}
-
-/////////////////////////////////////////////////////////////////////
-int PortmapProg::Process(IInputStream* pInStream, IOutputStream* pOutStream, ProcessParam* pParam)
-{
+	typedef int (PortmapProg::* PPROC)(IInputStream&, IOutputStream&);
 	static PPROC pf[] = {
 		&PortmapProg::ProcedureNULL, &PortmapProg::ProcedureSET, &PortmapProg::ProcedureUNSET,
 		&PortmapProg::ProcedureGETPORT, &PortmapProg::ProcedureDUMP, &PortmapProg::ProcedureCALLIT
 	};
 
-	PrintLog("PORTMAP ");
-
-	if (pParam->nProc >= sizeof(pf) / sizeof(PPROC))
+	if (param.procNum >= sizeof(pf) / sizeof(PPROC))
 	{
-		ProcedureNOIMP();
-		PrintLog("\n");
+		BOOST_LOG_TRIVIAL(debug) << "PORTMAP: procedure " << param.procNum << " not implemented";
 		return PRC_NOTIMP;
 	}
 
-	m_inStream = pInStream;
-	m_outStream = pOutStream;
-	m_param = pParam;
-	return (this->*pf[pParam->nProc])();
+	return (this->*pf[param.procNum])(inStream, outStream);
 }
 
 /////////////////////////////////////////////////////////////////////
-int PortmapProg::ProcedureNOIMP() noexcept
+int PortmapProg::ProcedureNULL(IInputStream&, IOutputStream&) noexcept
 {
-	PrintLog("NOIMP");
-	return PRC_NOTIMP;
-}
-
-/////////////////////////////////////////////////////////////////////
-int PortmapProg::ProcedureNULL() noexcept
-{
-	PrintLog("NULL");
+	BOOST_LOG_TRIVIAL(debug) << "PORTMAP: NULL command";
 	return PRC_OK;
 }
 
 /////////////////////////////////////////////////////////////////////
-int PortmapProg::ProcedureSET() noexcept
+int PortmapProg::ProcedureSET(IInputStream&, IOutputStream&) noexcept
 {
-	PrintLog("SET - NOIMP");
+	BOOST_LOG_TRIVIAL(debug) << "PORTMAP: SET command (not implemented)";
 	return PRC_NOTIMP;
 }
 
 /////////////////////////////////////////////////////////////////////
-int PortmapProg::ProcedureUNSET() noexcept
+int PortmapProg::ProcedureUNSET(IInputStream&, IOutputStream&) noexcept
 {
-	PrintLog("UNSET - NOIMP");
+	BOOST_LOG_TRIVIAL(debug) << "PORTMAP: UNSET command (not implemented)";
 	return PRC_NOTIMP;
 }
 
 /////////////////////////////////////////////////////////////////////
-int PortmapProg::ProcedureGETPORT() noexcept
+int PortmapProg::ProcedureGETPORT(IInputStream& input, IOutputStream& output) noexcept
 {
-	PortmapHeader header;
-	unsigned long port;
+	PortmapHeader header{};
+	unsigned long port = 0;
 
-	PrintLog("GETPORT");
-	m_inStream->Read(&header.prog);  //program
-	m_inStream->Skip(12);
-	port = header.prog >= MIN_PROG_NUM && header.prog < MIN_PROG_NUM + PORT_NUM ? m_portTable[header.prog - MIN_PROG_NUM] : 0;
-	PrintLog(" %d %d", header.prog, port);
-	m_outStream->Write(port);  //port
+	input.Read(&header.prog);  //program
+	input.Skip(12);
+	port = m_portTable[header.prog];
+	BOOST_LOG_TRIVIAL(debug) << "PORTMAP: GETPORT command: program " << header.prog << " listens port " << port;
+	output.Write(port);  //port
 	return PRC_OK;
 }
 
 /////////////////////////////////////////////////////////////////////
-int PortmapProg::ProcedureDUMP() noexcept
+int PortmapProg::ProcedureDUMP(IInputStream&, IOutputStream& outStream) noexcept
 {
-	PrintLog("DUMP");
+	BOOST_LOG_TRIVIAL(debug) << "PORTMAP: DUMP command";
+
+	auto Write = [&outStream](unsigned long prog, unsigned long vers, unsigned long proto, unsigned long port)->void {
+		outStream.Write(1);
+		outStream.Write(prog);
+		outStream.Write(vers);
+		outStream.Write(proto);
+		outStream.Write(port);
+	};
 
 	Write(PROG_PORTMAP, 2, IPPROTO_TCP, PORTMAP_PORT);
 	Write(PROG_PORTMAP, 2, IPPROTO_UDP, PORTMAP_PORT);
@@ -144,23 +129,13 @@ int PortmapProg::ProcedureDUMP() noexcept
 	Write(PROG_MOUNT, 3, IPPROTO_TCP, MOUNT_PORT);
 	Write(PROG_MOUNT, 3, IPPROTO_UDP, MOUNT_PORT);
 
-	m_outStream->Write(0);
+	outStream.Write(0);
 	return PRC_OK;
 }
 
 /////////////////////////////////////////////////////////////////////
-int PortmapProg::ProcedureCALLIT() noexcept
+int PortmapProg::ProcedureCALLIT(IInputStream&, IOutputStream&) noexcept
 {
-	PrintLog("CALLIT - NOIMP");
+	BOOST_LOG_TRIVIAL(debug) << "PORTMAP: CALLIT command (not implemented)";
 	return PRC_NOTIMP;
-}
-
-/////////////////////////////////////////////////////////////////////
-void PortmapProg::Write(unsigned long prog, unsigned long vers, unsigned long proto, unsigned long port)
-{
-	m_outStream->Write(1);
-	m_outStream->Write(prog);
-	m_outStream->Write(vers);
-	m_outStream->Write(proto);
-	m_outStream->Write(port);
 }

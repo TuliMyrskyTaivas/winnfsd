@@ -7,6 +7,8 @@
 #ifndef ICENFSD_RPCPROG_H
 #define ICENFSD_RPCPROG_H
 
+#include <string>
+
 /* The maximum number of bytes in a pathname argument. */
 #define MAXPATHLEN 1024
 
@@ -24,12 +26,12 @@ enum
     PRC_NOTIMP
 };
 
-typedef struct
+struct RPCParam
 {
-    unsigned int nVersion;
-    unsigned int nProc;
-    char *pRemoteAddr;
-} ProcessParam;
+    unsigned int version;
+    unsigned int procNum;
+    std::string remoteAddr;
+};
 
 class IInputStream;
 class IOutputStream;
@@ -37,15 +39,8 @@ class IOutputStream;
 class RPCProg
 {
 public:
-    RPCProg();
     virtual ~RPCProg() = default;
-
-    virtual int Process(IInputStream *inStream, IOutputStream *outStream, ProcessParam *param) = 0;
-    virtual void EnableLog(bool enableLog);
-
-protected:
-    bool m_enableLog;
-    virtual int PrintLog(const char *format, ...);
+    virtual int Process(IInputStream& inStream, IOutputStream& outStream, RPCParam& param) = 0;
 };
 
 #endif // ICENFSD_RPCPROG_H

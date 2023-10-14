@@ -7,12 +7,13 @@
 #include "NFSProg.h"
 #include "NFS3Prog.h"
 
+#include <boost/log/trivial.hpp>
+
 /////////////////////////////////////////////////////////////////////
 NFSProg::NFSProg()
-    : RPCProg()
-    , m_uid(0)
-    , m_gid(0)
-    , m_nfs3(nullptr)
+	: RPCProg()
+	, m_uid(0)
+	, m_gid(0)
 {}
 
 /////////////////////////////////////////////////////////////////////
@@ -22,36 +23,22 @@ NFSProg::~NFSProg()
 /////////////////////////////////////////////////////////////////////
 void NFSProg::SetUserID(unsigned int uid, unsigned int gid)
 {
-    m_uid = uid;
-    m_gid = gid;
+	m_uid = uid;
+	m_gid = gid;
 }
 
 /////////////////////////////////////////////////////////////////////
-int NFSProg::Process(IInputStream *inStream, IOutputStream *outStream, ProcessParam *param)
+int NFSProg::Process(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-    if (param->nVersion == 3)
-    {
-        if (!m_nfs3)
-        {
-            m_nfs3 = std::make_unique<NFS3Prog>(m_uid, m_gid, m_enableLog);
-        }
-
-        return m_nfs3->Process(inStream, outStream, param);
-    }
-    else
-    {
-        PrintLog("Client requested NFS version %u which isn't supported.\n", param->nVersion);
-        return PRC_NOTIMP;
-    }
-}
-
-/////////////////////////////////////////////////////////////////////
-void NFSProg::EnableLog(bool enableLog)
-{
-    RPCProg::EnableLog(enableLog);
-
-    if (m_nfs3 != nullptr)
-    {
-        m_nfs3->EnableLog(enableLog);
-    }
+	if (param.version == 3)
+	{
+		NFS3Prog nfs3(m_uid, m_gid);
+		return nfs3.Process(inStream, outStream, param);
+	}
+	else
+	{
+		BOOST_LOG_TRIVIAL(error) << "Client " << param.remoteAddr << " requested NFS version "
+			<< param.version << " which is not supported";
+		return PRC_NOTIMP;
+	}
 }

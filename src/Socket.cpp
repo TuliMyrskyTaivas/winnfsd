@@ -24,6 +24,7 @@ static unsigned int __stdcall ThreadProc(void* parameter)
 Socket::Socket(int type)
 	: m_type(type)
 	, m_socket(INVALID_SOCKET)
+	, m_listener(nullptr)
 	, m_active(false)
 	, m_thread(nullptr)
 {
@@ -122,15 +123,15 @@ int Socket::GetRemotePort() const noexcept
 }
 
 /////////////////////////////////////////////////////////////////////
-IInputStream* Socket::GetInputStream() noexcept
+IInputStream& Socket::GetInputStream() noexcept
 {
-	return &m_socketStream;
+	return m_socketStream;
 }
 
 /////////////////////////////////////////////////////////////////////
-IOutputStream* Socket::GetOutputStream() noexcept
+IOutputStream& Socket::GetOutputStream() noexcept
 {
-	return &m_socketStream;
+	return m_socketStream;
 }
 
 /////////////////////////////////////////////////////////////////////

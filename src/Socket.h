@@ -26,8 +26,8 @@ public:
     bool Active() const noexcept;
     char* GetRemoteAddress() const noexcept;
     int GetRemotePort() const noexcept;
-    IInputStream* GetInputStream() noexcept;
-    IOutputStream* GetOutputStream() noexcept;
+    IInputStream& GetInputStream() noexcept;
+    IOutputStream& GetOutputStream() noexcept;
     void Run();
 
  private:

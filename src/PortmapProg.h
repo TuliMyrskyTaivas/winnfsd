@@ -8,35 +8,25 @@
 #define ICENFSD_PORTMAPPROG_H
 
 #include "RPCProg.h"
-
-#define PORT_NUM 10
+#include <map>
 
 class PortmapProg : public RPCProg
 {
 public:
-	PortmapProg();
 	virtual ~PortmapProg() = default;
 
-	void Set(unsigned long prog, unsigned long port);
-	int Process(IInputStream* inStream, IOutputStream* outStream, ProcessParam* param);
-
-protected:
-	unsigned long m_portTable[PORT_NUM];
-	IInputStream* m_inStream;
-	IOutputStream* m_outStream;
-
-	int ProcedureNOIMP() noexcept;
-	int ProcedureNULL() noexcept;
-	int ProcedureSET() noexcept;
-	int ProcedureUNSET() noexcept;
-	int ProcedureGETPORT() noexcept;
-	int ProcedureDUMP() noexcept;
-	int ProcedureCALLIT() noexcept;
+	void Set(uint32_t prog, uint32_t port);
+	int Process(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
 
 private:
-	ProcessParam* m_param;
+	std::map<uint32_t, uint32_t> m_portTable;
 
-	void Write(unsigned long prog, unsigned long vers, unsigned long proto, unsigned long port);
+	int ProcedureNULL(IInputStream& inStream, IOutputStream& outStream) noexcept;
+	int ProcedureSET(IInputStream& inStream, IOutputStream& outStream) noexcept;
+	int ProcedureUNSET(IInputStream& inStream, IOutputStream& outStream) noexcept;
+	int ProcedureGETPORT(IInputStream& inStream, IOutputStream& outStream) noexcept;
+	int ProcedureDUMP(IInputStream& inStream, IOutputStream& outStream) noexcept;
+	int ProcedureCALLIT(IInputStream& inStream, IOutputStream& outStream) noexcept;
 };
 
 #endif // ICENFSD_PORTMAPPROG_H

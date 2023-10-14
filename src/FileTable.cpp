@@ -322,26 +322,26 @@ void FileTable::RenameFile(const char* pathFrom, const char* pathTo)
 }
 
 /////////////////////////////////////////////////////////////////////
-bool FileExists(const char* path)
+bool FileExists(const std::string& path)
 {
 	struct _finddata_t fileinfo;
 
-	auto handle = _findfirst(path, &fileinfo);
+	auto handle = _findfirst(path.c_str(), &fileinfo);
 	_findclose(handle);
 
-	return handle == -1 ? false : strcmp(fileinfo.name, strrchr(path, '\\') + 1) == 0;  //filename must match case
+	return handle == -1 ? false : strcmp(fileinfo.name, strrchr(path.c_str(), '\\') + 1) == 0;  //filename must match case
 }
 
 /////////////////////////////////////////////////////////////////////
-unsigned long GetFileID(const char* path)
+unsigned long GetFileID(const std::string& path)
 {
-	return g_FileTable.GetIDByPath(path);
+	return g_FileTable.GetIDByPath(path.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////
-unsigned char* GetFileHandle(const char* path)
+unsigned char* GetFileHandle(const std::string& path)
 {
-	return g_FileTable.GetHandleByPath(path);
+	return g_FileTable.GetHandleByPath(path.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -351,9 +351,9 @@ bool GetFilePath(unsigned char* handle, std::string& filePath)
 }
 
 /////////////////////////////////////////////////////////////////////
-int RenameFile(const char* pathFrom, const char* pathTo)
+int RenameFile(const std::string& pathFrom, const std::string& pathTo)
 {
-	tree_node_<FileItem>* node = g_FileTable.FindItemByPath(pathFrom);
+	tree_node_<FileItem>* node = g_FileTable.FindItemByPath(pathFrom.c_str());
 	FileItem* item = &(node->data);
 
 	if (item == nullptr)
@@ -361,16 +361,16 @@ int RenameFile(const char* pathFrom, const char* pathTo)
 		return false; // WHAT?
 	}
 
-	errno_t errorNumber = rename(pathFrom, pathTo);
+	errno_t errorNumber = rename(pathFrom.c_str(), pathTo.c_str());
 	if (errorNumber == 0)
 	{
-		g_FileTable.RenameFile(pathFrom, pathTo);
+		g_FileTable.RenameFile(pathFrom.c_str(), pathTo.c_str());
 	}
 	return errorNumber;
 }
 
 /////////////////////////////////////////////////////////////////////
-int RenameDirectory(const char* pathFrom, const char* pathTo)
+int RenameDirectory(const std::string& pathFrom, const std::string& pathTo)
 {
 	errno_t errorNumber = RenameFile(pathFrom, pathTo);
 
@@ -387,13 +387,13 @@ int RenameDirectory(const char* pathFrom, const char* pathTo)
 }
 
 /////////////////////////////////////////////////////////////////////
-bool RemoveFile(const char* path)
+bool RemoveFile(const std::string& path)
 {
-	if (0 == _chmod(path, S_IREAD | S_IWRITE))
+	if (0 == _chmod(path.c_str(), S_IREAD | S_IWRITE))
 	{
-		if (0 == remove(path))
+		if (0 == remove(path.c_str()))
 		{
-			g_FileTable.RemoveItem(path);
+			g_FileTable.RemoveItem(path.c_str());
 			return true;
 		}
 	}
@@ -402,14 +402,14 @@ bool RemoveFile(const char* path)
 }
 
 /////////////////////////////////////////////////////////////////////
-int RemoveFolder(const char* path)
+int RemoveFolder(const std::string& path)
 {
-	if (0 != _chmod(path, S_IREAD | S_IWRITE))
+	if (0 != _chmod(path.c_str(), S_IREAD | S_IWRITE))
 	{
 		return -1;
 	}
 
-	if (RemoveDirectory(path) != 0) {
+	if (RemoveDirectory(path.c_str()) != 0) {
 		const std::string dotFile = "\\.";
 		const std::string backFile = "\\..";
 		const std::string dotDirectoryPath = path + dotFile;
@@ -417,7 +417,7 @@ int RemoveFolder(const char* path)
 
 		g_FileTable.RemoveItem(dotDirectoryPath.c_str());
 		g_FileTable.RemoveItem(backDirectoryPath.c_str());
-		g_FileTable.RemoveItem(path);
+		g_FileTable.RemoveItem(path.c_str());
 		return 0;
 	}
 	return  GetLastError();

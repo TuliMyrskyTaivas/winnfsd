@@ -10,6 +10,7 @@
 #define TABLE_SIZE 1024
 
 #include "tree.hh"
+#include <string>
 
 struct FileItem
 {
@@ -56,12 +57,12 @@ private:
 	void PutItemInCache(FileItem* item);
 };
 
-extern bool FileExists(const char* path);
-extern unsigned long GetFileID(const char* path);
-extern unsigned char* GetFileHandle(const char* path);
+extern bool FileExists(const std::string& path);
+extern unsigned long GetFileID(const std::string& path);
+extern unsigned char* GetFileHandle(const std::string& path);
 extern bool GetFilePath(unsigned char* handle, std::string& filePath);
-extern int RenameFile(const char* pathFrom, const char* pathTo);
-extern int RenameDirectory(const char* pathFrom, const char* pathTo);
-extern int RemoveFolder(const char* path);
-extern bool RemoveFile(const char* path);
+extern int RenameFile(const std::string&, const std::string& pathTo);
+extern int RenameDirectory(const std::string& pathFrom, const std::string& pathTo);
+extern int RemoveFolder(const std::string& path);
+extern bool RemoveFile(const std::string& path);
 #endif // ICENFSD_FILETABLE_H

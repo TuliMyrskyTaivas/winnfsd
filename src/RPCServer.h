@@ -25,8 +25,7 @@ public:
 
 	void Set(uint32_t progNumber, RPCProgPtr progHandle);
 	RPCProg& Get(uint32_t progNumber);
-	void EnableLog(bool enableLog);
-	void SocketReceived(Socket* socket);
+	void SocketReceived(Socket* socket) override;
 
 protected:
 	std::map<uint32_t, RPCProgPtr> m_progTable;

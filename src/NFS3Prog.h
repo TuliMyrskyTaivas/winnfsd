@@ -49,75 +49,47 @@ struct WccData;
 class NFS3Prog : public RPCProg
 {
 public:
-	NFS3Prog(unsigned int uid, unsigned int gid, bool enableLog);
+	NFS3Prog(unsigned int uid, unsigned int gid);
 	~NFS3Prog() = default;
 
-	int Process(IInputStream* inStream, IOutputStream* outStream, ProcessParam* param);
+	int Process(IInputStream& inStream, IOutputStream& outStream, RPCParam& param) override;
 
 protected:
-	unsigned long m_uid, m_gid;
-	IInputStream* m_inStream;
-	IOutputStream* m_outStream;
-	ProcessParam* m_param;
+	unsigned int m_uid, m_gid;
 
-	NfsStat3 ProcedureNULL();
-	NfsStat3 ProcedureGETATTR();
-	NfsStat3 ProcedureSETATTR();
-	NfsStat3 ProcedureLOOKUP();
-	NfsStat3 ProcedureACCESS();
-	NfsStat3 ProcedureREADLINK();
-	NfsStat3 ProcedureREAD();
-	NfsStat3 ProcedureWRITE();
-	NfsStat3 ProcedureCREATE();
-	NfsStat3 ProcedureMKDIR();
-	NfsStat3 ProcedureSYMLINK();
-	NfsStat3 ProcedureMKNOD();
-	NfsStat3 ProcedureREMOVE();
-	NfsStat3 ProcedureRMDIR();
-	NfsStat3 ProcedureRENAME();
-	NfsStat3 ProcedureLINK();
-	NfsStat3 ProcedureREADDIR();
-	NfsStat3 ProcedureREADDIRPLUS();
-	NfsStat3 ProcedureFSSTAT();
-	NfsStat3 ProcedureFSINFO();
-	NfsStat3 ProcedurePATHCONF();
-	NfsStat3 ProcedureCOMMIT();
-	NfsStat3 ProcedureNOIMP();
-
-	void Read(bool* pBool);
-	void Read(uint32_t* pUint32);
-	void Read(uint64_t* pUint64);
-	void Read(SAttr3* pAttr);
-	void Read(SAttrGuard3* pGuard);
-	void Read(DirOpArgs3* pDir);
-	void Read(Opaque* pOpaque);
-	void Read(NFSTime3* pTime);
-	void Read(CreateHow3* pHow);
-	void Read(SymlinkData3* pSymlink);
-	void Write(bool* pBool);
-	void Write(uint32_t* pUint32);
-	void Write(uint64_t* pUint64);
-	void Write(FAttr3* pAttr);
-	void Write(Opaque* pOpaque);
-	void Write(WccData* pWcc);
-	void Write(PostOpAttr* pAttr);
-	void Write(PreOpAttr* pAttr);
-	void Write(PostOpFH3* pObj);
-	void Write(NFSTime3* pTime);
-	void Write(SpecData3* pSpec);
-	void Write(WccAttr* pAttr);
+	NfsStat3 ProcedureNULL(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureGETATTR(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureSETATTR(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureLOOKUP(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureACCESS(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureREADLINK(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureREAD(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureWRITE(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureCREATE(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureMKDIR(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureSYMLINK(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureMKNOD(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureREMOVE(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureRMDIR(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureRENAME(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureLINK(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureREADDIR(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureREADDIRPLUS(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureFSSTAT(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureFSINFO(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedurePATHCONF(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureCOMMIT(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
+	NfsStat3 ProcedureNOIMP(IInputStream& inStream, IOutputStream& outStream, RPCParam& param);
 
 private:
-	int m_result;
-
-	bool GetPath(std::string& path);
-	bool ReadDirectory(std::string& dirName, std::string& fileName);
-	char* GetFullPath(std::string& dirName, std::string& fileName);
-	NfsStat3 CheckFile(const char* fullPath);
-	NfsStat3 CheckFile(const char* directory, const char* fullPath);
-	bool GetFileHandle(const char* path, NFSv3FileHandle* pObject);
-	bool GetFileAttributesForNFS(const char* path, WccAttr* pAttr);
-	bool GetFileAttributesForNFS(const char* path, FAttr3* pAttr);
+	std::string GetPath(IInputStream& inStream);
+	bool ReadDirectory(IInputStream& inStream, std::string& dirName, std::string& fileName);
+	std::string GetFullPath(const std::string& dirName, const std::string& fileName);
+	NfsStat3 CheckFile(const std::string& fullPath);
+	NfsStat3 CheckFile(const std::string&, const std::string& fullPath);
+	bool GetFileHandle(const std::string& path, NFSv3FileHandle* pObject);
+	bool GetFileAttributesForNFS(const std::string& path, WccAttr* pAttr);
+	bool GetFileAttributesForNFS(const std::string& path, FAttr3* pAttr);
 	UINT32 FileTimeToPOSIX(FILETIME ft);
 	std::unordered_map<int, FILE*> unstableStorageFile;
 };

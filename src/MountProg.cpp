@@ -8,11 +8,16 @@
 #include "FileTable.h"
 #include "InputStream.h"
 #include "OutputStream.h"
+
+#include <boost/algorithm/string/trim.hpp>
+#include <boost/log/trivial.hpp>
+
 #include <cstring>
 #include <cctype>
 #include <map>
 #include <fstream>
 #include <sstream>
+#include <filesystem>
 #include <iostream>
 #include <string>
 #include <direct.h>
@@ -38,255 +43,152 @@ enum
 	MNTERR_INVAL = 22
 };
 
-typedef int (MountProg::* PPROC)(void);
-
 /////////////////////////////////////////////////////////////////////
-MountProg::MountProg()
-	: RPCProg()
-	, m_mountNum(0)
-	, m_inStream(nullptr)
-	, m_outStream(nullptr)
-	, m_param(nullptr)
-{
-	memset(m_clientAddr, 0, sizeof(m_clientAddr));
-}
-
-/////////////////////////////////////////////////////////////////////
-MountProg::~MountProg()
-{
-	for (int i = 0; i < MOUNT_NUM_MAX; i++)
-	{
-		delete[] m_clientAddr[i];
-	}
-}
-
-/////////////////////////////////////////////////////////////////////
-bool MountProg::SetPathFile(const char* file)
-{
-	const auto filePath = FormatPath(file, FORMAT_PATH);
-	std::ifstream input(filePath);
-	if (input.good())
-	{
-		m_pathFile = filePath;
-		ReadPathsFromFile();
-		return true;
-	}
-
-	return false;
-}
-
-/////////////////////////////////////////////////////////////////////
-void MountProg::Export(const char* path, const char* pathAlias)
+void MountProg::Export(const std::string& path, const std::string& alias)
 {
 	const auto formattedPath = FormatPath(path, FORMAT_PATH);
-	const auto formattedAlias = FormatPath(pathAlias, FORMAT_PATHALIAS);
+	const auto formattedAlias = FormatPath(alias, FORMAT_PATHALIAS);
 
-	if (m_pathMap.count(pathAlias) == 0)
+	if (m_pathMap.count(alias))
 	{
-		m_pathMap[pathAlias] = formattedPath;
-		printf("Path #%lld is: %s, path alias is: %s\n", m_pathMap.size(), path, pathAlias);
+		throw std::runtime_error("Path " + alias + " already exported");
 	}
-	else
-	{
-		printf("Path %s with path alias %s already known\n", path, pathAlias);
-	}
+
+	m_pathMap[alias] = formattedPath;
+	BOOST_LOG_TRIVIAL(debug) << "MOUNT: add export " << alias << '=' << formattedPath;
 }
 
 /////////////////////////////////////////////////////////////////////
-bool MountProg::Refresh()
+int MountProg::Process(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
-	ReadPathsFromFile();
-	return true;
-}
+	typedef int (MountProg::* PPROC)(IInputStream&, IOutputStream&, RPCParam&);
+	static PPROC pf[] = { &MountProg::ProcedureNULL, &MountProg::ProcedureMNT, &MountProg::ProcedureNOIMP,
+		&MountProg::ProcedureUMNT, &MountProg::ProcedureUMNTALL, &MountProg::ProcedureEXPORT };
 
-/////////////////////////////////////////////////////////////////////
-int MountProg::GetMountNumber() const noexcept
-{
-	return m_mountNum;  //the number of clients mounted
-}
-
-/////////////////////////////////////////////////////////////////////
-char* MountProg::GetClientAddr(int index) const
-{
-	if (index < 0 || index >= m_mountNum)
+	if (param.procNum >= sizeof(pf) / sizeof(PPROC))
 	{
-		return nullptr;
-	}
-
-	for (int i = 0; i < MOUNT_NUM_MAX; i++)
-	{
-		if (m_clientAddr[i] != nullptr)
-		{
-			if (index == 0)
-			{
-				return m_clientAddr[i];  //client address
-			}
-			else
-			{
-				--index;
-			}
-		}
-	}
-	return nullptr;
-}
-
-/////////////////////////////////////////////////////////////////////
-int MountProg::Process(IInputStream* pInStream, IOutputStream* pOutStream, ProcessParam* pParam)
-{
-	static PPROC pf[] = { &MountProg::ProcedureNULL, &MountProg::ProcedureMNT, &MountProg::ProcedureNOIMP, &MountProg::ProcedureUMNT, &MountProg::ProcedureUMNTALL, &MountProg::ProcedureEXPORT };
-
-	PrintLog("MOUNT ");
-
-	if (pParam->nProc >= sizeof(pf) / sizeof(PPROC))
-	{
-		ProcedureNOIMP();
-		PrintLog("\n");
+		BOOST_LOG_TRIVIAL(debug) << "MOUNT: procedure " << param.procNum << " not implemented";
 		return PRC_NOTIMP;
 	}
 
-	m_inStream = pInStream;
-	m_outStream = pOutStream;
-	m_param = pParam;
-	return (this->*pf[pParam->nProc])();
+	return (this->*pf[param.procNum])(inStream, outStream, param);
 }
 
 /////////////////////////////////////////////////////////////////////
-int MountProg::ProcedureNULL() noexcept
+int MountProg::ProcedureNULL(IInputStream&, IOutputStream&, RPCParam&) noexcept
 {
-	PrintLog("NULL");
+	BOOST_LOG_TRIVIAL(debug) << "MOUNT: NULL command";
 	return PRC_OK;
 }
 
 /////////////////////////////////////////////////////////////////////
-int MountProg::ProcedureMNT() noexcept
+int MountProg::ProcedureMNT(IInputStream& inStream, IOutputStream& outStream, RPCParam& param) noexcept
 {
-	Refresh();
-	char* path = new char[MAXPATHLEN + 1];
-
-	PrintLog("MNT");
-	PrintLog(" from %s\n", m_param->pRemoteAddr);
-
-	if (GetPath(&path))
+	BOOST_LOG_TRIVIAL(debug) << "MOUNT: MNT command, version=" << param.version << ", from " << param.remoteAddr;
+	const auto path = GetPath(inStream);
+	if (path.empty())
 	{
-		m_outStream->Write(MNT_OK); //OK
+		BOOST_LOG_TRIVIAL(debug) << "MOUNT: permission denied";
+		outStream.Write(MNTERR_ACCESS);  //permission denied
+		return PRC_OK;
+	}
 
-		if (m_param->nVersion == 1)
-		{
-			m_outStream->Write(GetFileHandle(path), FHSIZE);  //fhandle
-		}
-		else
-		{
-			m_outStream->Write(NFS3_FHSIZE);  //length
-			m_outStream->Write(GetFileHandle(path), NFS3_FHSIZE);  //fhandle
-			m_outStream->Write(0);  //flavor
-		}
-
-		++m_mountNum;
-
-		for (int i = 0; i < MOUNT_NUM_MAX; i++)
-		{
-			if (m_clientAddr[i] == nullptr) //search an empty space
-			{
-				m_clientAddr[i] = new char[strlen(m_param->pRemoteAddr) + 1];
-				strcpy_s(m_clientAddr[i], (strlen(m_param->pRemoteAddr) + 1), m_param->pRemoteAddr);  //remember the client address
-				break;
-			}
-		}
+	const auto handle = GetFileHandle(path.c_str());
+	outStream.Write(MNT_OK); //OK
+	if (param.version == 1)
+	{
+		outStream.Write(handle, FHSIZE);  //fhandle
 	}
 	else
 	{
-		m_outStream->Write(MNTERR_ACCESS);  //permission denied
+		outStream.Write(NFS3_FHSIZE);  //length
+		outStream.Write(handle, NFS3_FHSIZE);  //fhandle
+		outStream.Write(0);  //flavor
+	}
+
+	m_clients.push_back(param.remoteAddr); //remember the client address
+	return PRC_OK;
+}
+
+/////////////////////////////////////////////////////////////////////
+int MountProg::ProcedureUMNT(IInputStream& inStream, IOutputStream&, RPCParam& param) noexcept
+{
+	BOOST_LOG_TRIVIAL(debug) << "MOUNT: MNT command, version=" << param.version << ", from " << param.remoteAddr;
+	const auto path = GetPath(inStream);
+
+	auto client = std::find(m_clients.begin(), m_clients.end(), param.remoteAddr);
+	if (m_clients.end() != client)
+	{
+		m_clients.erase(client);
 	}
 	return PRC_OK;
 }
 
 /////////////////////////////////////////////////////////////////////
-int MountProg::ProcedureUMNT() noexcept
+int MountProg::ProcedureEXPORT(IInputStream&, IOutputStream& outStream, RPCParam& param) noexcept
 {
-	char* path = new char[MAXPATHLEN + 1];
-
-	PrintLog("UMNT");
-	GetPath(&path);
-	PrintLog(" from %s", m_param->pRemoteAddr);
-
-	for (int i = 0; i < MOUNT_NUM_MAX; i++) {
-		if (m_clientAddr[i] != NULL) {
-			if (strcmp(m_param->pRemoteAddr, m_clientAddr[i]) == 0) { //address match
-				delete[] m_clientAddr[i];  //remove this address
-				m_clientAddr[i] = NULL;
-				--m_mountNum;
-				break;
-			}
-		}
-	}
-
-	return PRC_OK;
-}
-
-/////////////////////////////////////////////////////////////////////
-int MountProg::ProcedureEXPORT() noexcept
-{
-	PrintLog("EXPORT");
+	BOOST_LOG_TRIVIAL(debug) << "MOUNT: EXPORT command, version=" << param.version << ", from " << param.remoteAddr;
 
 	for (auto const& exportedPath : m_pathMap)
 	{
-		const char* path = exportedPath.first.c_str();
-		int length = static_cast<int>(strlen(path));
+		const auto& path = exportedPath.first;
+		const uint32_t pathSize = static_cast<uint32_t>(path.length());
 		// dirpath
-		m_outStream->Write(1);
-		m_outStream->Write(length);
-		m_outStream->Write(const_cast<char*>(path), length);
-		int fillBytes = (length % 4);
+		outStream.Write(1);
+		outStream.Write(pathSize);
+		outStream.Write(const_cast<char*>(path.data()), pathSize);
+		uint32_t fillBytes = (pathSize % 4);
 		if (fillBytes > 0)
 		{
 			fillBytes = 4 - fillBytes;
-			m_outStream->Write(".", fillBytes);
+			outStream.Write(".", fillBytes);
 		}
 		// groups
-		m_outStream->Write(1);
-		m_outStream->Write(1);
-		m_outStream->Write("*", 1);
-		m_outStream->Write("...", 3);
-		m_outStream->Write(0);
+		outStream.Write(1);
+		outStream.Write(1);
+		outStream.Write("*", 1);
+		outStream.Write("...", 3);
+		outStream.Write(0);
 	}
 
-	m_outStream->Write(0);
-	m_outStream->Write(0);
+	outStream.Write(0);
+	outStream.Write(0);
 	return PRC_OK;
 }
 
 /////////////////////////////////////////////////////////////////////
-int MountProg::ProcedureUMNTALL() noexcept
+int MountProg::ProcedureUMNTALL(IInputStream&, IOutputStream&, RPCParam&) noexcept
 {
-	PrintLog("UMNTALL NOIMP");
+	BOOST_LOG_TRIVIAL(debug) << "MOUNT: UMNTALL command (not implemented)";
 	return PRC_NOTIMP;
 }
 
 /////////////////////////////////////////////////////////////////////
-int MountProg::ProcedureNOIMP() noexcept
+int MountProg::ProcedureNOIMP(IInputStream&, IOutputStream&, RPCParam&) noexcept
 {
-	PrintLog("NOIMP");
+	BOOST_LOG_TRIVIAL(debug) << "MOUNT: NOIMP command (not implemented)";
 	return PRC_NOTIMP;
 }
 
 /////////////////////////////////////////////////////////////////////
-bool MountProg::GetPath(char** returnPath)
+std::string MountProg::GetPath(IInputStream& inStream)
 {
-	uint32_t i, size;
-	static char path[MAXPATHLEN + 1];
+	uint32_t i;
 	static char finalPath[MAXPATHLEN + 1];
 	bool foundPath = false;
 
-	m_inStream->Read(&size);
+	uint32_t pathSize = 0;
+	inStream.Read(&pathSize);
 
-	if (size > MAXPATHLEN)
+	if (pathSize > MAXPATHLEN)
 	{
-		size = MAXPATHLEN;
+		pathSize = MAXPATHLEN;
 	}
 
-	typedef std::map<std::string, std::string>::iterator it_type;
-	m_inStream->Read(path, size);
-	path[size] = '\0';
+	using it_type = std::map<std::string, std::string>::iterator;
+	char path[MAXPATHLEN + 1];
+	inStream.Read(path, pathSize);
+	path[pathSize] = '\0';
 
 	// TODO: this whole method is quite ugly and ripe for refactoring
 	// strip slashes
@@ -348,12 +250,12 @@ bool MountProg::GetPath(char** returnPath)
 	if (foundPath != true)
 	{
 		//The requested path does not start with the alias, let's treat it normally.
-		strncpy_s(finalPath, MAXPATHLEN, path, size);
+		strncpy_s(finalPath, MAXPATHLEN, path, pathSize);
 		//transform mount path to Windows format. /d/work => d:\work
 		finalPath[0] = finalPath[1];
 		finalPath[1] = ':';
 
-		for (i = 2; i < size; i++)
+		for (i = 2; i < pathSize; i++)
 		{
 			if (finalPath[i] == '/')
 			{
@@ -361,142 +263,63 @@ bool MountProg::GetPath(char** returnPath)
 			}
 		}
 
-		finalPath[size] = '\0';
+		finalPath[pathSize] = '\0';
 	}
 
-	PrintLog("Final local requested path: %s\n", finalPath);
+	BOOST_LOG_TRIVIAL(debug) << "MOUNT: local requested path: " << finalPath;
 
-	if ((size & 3) != 0)
+	// skip opaque bytes
+	if ((pathSize & 3) != 0)
 	{
-		m_inStream->Read(&i, 4 - (size & 3));  //skip opaque bytes
+		inStream.Skip(4 - (pathSize & 3));
 	}
 
-	*returnPath = finalPath;
-	return foundPath;
+	return finalPath;
 }
 
 /////////////////////////////////////////////////////////////////////
-void MountProg::ReadPathsFromFile()
+std::string MountProg::FormatPath(const std::string& path, PathFormat format) const
 {
-	if (m_pathFile.empty())
-	{
-		return;
-	}
-
-	std::ifstream pathFile(m_pathFile);
-	if (!pathFile)
-	{
-		throw std::runtime_error("failed to open file " + m_pathFile);
-	}
-
-	std::string line;
-	while (std::getline(pathFile, line))
-	{
-		// split path and alias separated by '>'
-		auto delimiter = line.find('>');
-		if (std::string::npos == delimiter)
-		{
-			throw std::runtime_error("Invalid line in exports: " + line);
-		}
-
-		auto path = line.substr(0, delimiter);
-		auto alias = line.substr(delimiter + 1);
-
-		// clean path, trim spaces and slashes (except drive letter)
-		path.erase(path.find_last_not_of(" ") + 1);
-		if (path.substr(path.size() - 2) != ":\\")
-		{
-			path.erase(path.find_last_not_of("/\\ ") + 1);
-		}
-
-		Export(path.c_str(), alias.c_str());
-	}
-}
-
-/////////////////////////////////////////////////////////////////////
-std::string MountProg::FormatPath(const char* path, PathFormat format) const
-{
-	size_t len = strlen(path);
-
-	// Remove head spaces
-	while (*path == ' ')
-	{
-		++path;
-		len--;
-	}
-
-	// Remove tail spaces
-	while (len > 0 && *(path + len - 1) == ' ')
-	{
-		len--;
-	}
-
-	// Remove windows tail slashes (except when its only a drive letter)
-	while (len > 0 && *(path + len - 2) != ':' && *(path + len - 1) == '\\')
-	{
-		len--;
-	}
-
-	// Remove unix tail slashes
-	while (len > 1 && *(path + len - 1) == '/')
-	{
-		len--;
-	}
-
-	// Is comment?
-	if (*path == '#')
-	{
-		return nullptr;
-	}
-
-	// Remove head "
-	if (*path == '"')
-	{
-		++path;
-		len--;
-	}
-
-	// Remove tail "
-	if (len > 0 && *(path + len - 1) == '"')
-	{
-		len--;
-	}
-
-	if (len < 1)
+	std::string result = boost::algorithm::trim_copy(path);
+	if (result.empty())
 	{
 		throw std::runtime_error("invalid path");
 	}
 
-	std::string result(path, len);
+	// Remove tail windows/unix slash
+	if ('\\' == result.back() || '/' == result.back())
+	{
+		result.pop_back();
+	}
+
+	// Remove head and tail quotes
+	boost::algorithm::trim_if(result, boost::is_any_of("\""));
+	if (result.empty())
+	{
+		throw std::runtime_error("invalid path");
+	}
 
 	// Check for right path format
 	if (format == FORMAT_PATH)
 	{
-		if (result[0] == '.')
+		if (1 == result.length())
 		{
-			static char cwd[MAXPATHLEN];
-			_getcwd(cwd, MAXPATHLEN);
-
-			if (result[1] == '\0' || result[1] == '\\')
+			if ('.' == result.front())
 			{
-				result.append(cwd, strlen(cwd));
+				result = std::filesystem::current_path().string();
 			}
 		}
-		if (len >= 2 && result[1] == ':' && isalpha(result[0])) //check path format
+		else if (result[1] == ':' && isalpha(result[0])) // check if path starts with a drive letter
 		{
 			result = "\\\\?\\" + result;
 		}
 
-		if (len < 6 || result[5] != ':' || !isalpha(result[4])) //check path format
+		// replace slashes to backslashes
+		for (auto& byte : result)
 		{
-			throw std::runtime_error("Path format is incorrect. Please use a full path such as C:\\work or \\\\?\\C:\\work");
-		}
-
-		for (size_t i = 0; i < len; i++)
-		{
-			if (result[i] == '/')
+			if ('/' == byte)
 			{
-				result[i] = '\\';
+				byte = '\\';
 			}
 		}
 	}
