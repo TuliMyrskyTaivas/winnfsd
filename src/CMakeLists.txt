@@ -39,8 +39,6 @@ add_executable (icenfsd
     WinNFSd.rc
 )
 
-message (STATUS "Boost_LIBRARIES=${Boost_LIBRARIES}")
-
 target_link_libraries(icenfsd
     ws2_32
     ${Boost_LIBRARIES}
