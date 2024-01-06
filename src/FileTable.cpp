@@ -160,7 +160,8 @@ tree_node_<FileItem>* FileTable::AddItem(const char* path)
 	*(unsigned int*)item.handle = m_tableSize;  //let its handle equal the index
 	item.cached = false;  //not in the cache
 
-	if (m_tableSize > 0 && (m_tableSize & (TABLE_SIZE - 1)) == 0) {
+	if (m_tableSize > 0 && (m_tableSize & (TABLE_SIZE - 1)) == 0)
+	{
 		m_lastTable->next = new FileTableNode;
 		m_lastTable = m_lastTable->next;
 		memset(m_lastTable, 0, sizeof(FileTableNode));
@@ -178,13 +179,15 @@ tree_node_<FileItem>* FileTable::AddItem(const char* path)
 /////////////////////////////////////////////////////////////////////
 tree_node_<FileItem>* FileTable::GetItemByID(unsigned int id)
 {
-	if (id >= m_tableSize) {
+	if (id >= m_tableSize)
+	{
 		return nullptr;
 	}
 
 	unsigned int i;
 	FileTableNode* table = m_firstTable;
-	for (i = TABLE_SIZE; i <= id; i += TABLE_SIZE) {
+	for (i = TABLE_SIZE; i <= id; i += TABLE_SIZE)
+	{
 		table = table->next;
 	}
 
@@ -207,7 +210,8 @@ void FileTable::PutItemInCache(FileItem* item)
 				{
 					return;
 				}
-				else {  //move to the first
+				else
+				{  //move to the first
 					prev->next = curr->next;
 					curr->next = m_cacheList;
 					m_cacheList = curr;
@@ -219,20 +223,24 @@ void FileTable::PutItemInCache(FileItem* item)
 			curr = curr->next;
 		}
 	}
-	else {
+	else
+	{
 		item->cached = true;
 
 		int count;
-		for (count = 0; count < 9 && curr != NULL; count++) { //seek to the end of the cache
+		for (count = 0; count < 9 && curr != NULL; count++)
+		{ //seek to the end of the cache
 			prev = curr;
 			curr = curr->next;
 		}
 
-		if (count == 9 && curr != NULL) { //there are 10 items in the cache
+		if (count == 9 && curr != NULL)
+		{ //there are 10 items in the cache
 			prev->next = NULL;  //remove the last
 			curr->item->cached = false;
 		}
-		else {
+		else
+		{
 			curr = new CacheList;
 		}
 
@@ -243,7 +251,8 @@ void FileTable::PutItemInCache(FileItem* item)
 }
 
 /////////////////////////////////////////////////////////////////////
-bool FileTable::RemoveItem(const char* path) {
+bool FileTable::RemoveItem(const char* path)
+{
 	/* CACHE_LIST *pCurr;
 	 FILE_ITEM *pItem;
 	 unsigned int i, j, nPathLen;
@@ -409,7 +418,8 @@ int RemoveFolder(const std::string& path)
 		return -1;
 	}
 
-	if (RemoveDirectory(path.c_str()) != 0) {
+	if (RemoveDirectory(path.c_str()) != 0)
+	{
 		const std::string dotFile = "\\.";
 		const std::string backFile = "\\..";
 		const std::string dotDirectoryPath = path + dotFile;
