@@ -6,18 +6,7 @@
 
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include "Socket.h"
-#include <process.h>
-#include <stdexcept>
-#include <iostream>
-
-/////////////////////////////////////////////////////////////////////
-static unsigned int __stdcall ThreadProc(void* parameter)
-{
-	Socket* socket = reinterpret_cast<Socket*>(parameter);
-	socket->Run();
-
-	return 0;
-}
+#include <boost/log/trivial.hpp>
 
 /////////////////////////////////////////////////////////////////////
 Socket::Socket(int type)
@@ -25,7 +14,6 @@ Socket::Socket(int type)
 	, m_socket(INVALID_SOCKET)
 	, m_listener(nullptr)
 	, m_active(false)
-	, m_thread(nullptr)
 {
 	memset(&m_remoteAddr, 0, sizeof(m_remoteAddr));
 }
@@ -45,8 +33,6 @@ int Socket::GetType() const noexcept
 /////////////////////////////////////////////////////////////////////
 void Socket::Open(SOCKET socket, ISocketListener* listener, struct sockaddr_in* remoteAddr)
 {
-	unsigned int id;
-
 	Close();
 
 	m_socket = socket;
@@ -60,7 +46,7 @@ void Socket::Open(SOCKET socket, ISocketListener* listener, struct sockaddr_in* 
 	if (m_socket != INVALID_SOCKET)
 	{
 		m_active = true;
-		m_thread = (HANDLE)_beginthreadex(NULL, 0, ThreadProc, this, 0, &id);
+		m_thread = std::thread(&Socket::Run, this);
 	}
 }
 
@@ -73,11 +59,9 @@ void Socket::Close()
 		m_socket = INVALID_SOCKET;
 	}
 
-	if (m_thread != nullptr)
+	if (m_thread.joinable())
 	{
-		WaitForSingleObject(m_thread, INFINITE);
-		CloseHandle(m_thread);
-		m_thread = nullptr;
+		m_thread.join();
 	}
 }
 
@@ -90,7 +74,6 @@ void Socket::Send()
 	}
 
 	const int outputSize = static_cast<int>(m_socketStream.GetOutputSize());
-
 	if (m_type == SOCK_STREAM)
 	{
 		send(m_socket, (const char*)m_socketStream.GetOutput(), outputSize, 0);
@@ -100,13 +83,13 @@ void Socket::Send()
 		sendto(m_socket, (const char*)m_socketStream.GetOutput(), outputSize, 0, (struct sockaddr*)&m_remoteAddr, sizeof(struct sockaddr));
 	}
 
-	m_socketStream.Reset();  //clear output buffer
+	m_socketStream.Reset();  // clear output buffer
 }
 
 /////////////////////////////////////////////////////////////////////
 bool Socket::Active() const noexcept
 {
-	return m_active;  //thread is active or not
+	return m_active;  // thread is active or not
 }
 
 /////////////////////////////////////////////////////////////////////
@@ -137,10 +120,8 @@ IOutputStream& Socket::GetOutputStream() noexcept
 void Socket::Run()
 try
 {
-	int size = 0, bytes = 0, fragmentHeaderMsb = 0, fragmentHeaderLengthBytes = 0;
-	uint32_t fragmentHeader;
-
-	size = sizeof(m_remoteAddr);
+	int size = sizeof(m_remoteAddr);
+	int bytes = 0;
 
 	for (;;)
 	{
@@ -156,10 +137,11 @@ try
 			// only if at least 4 bytes are availabe (the fragment header) we can continue
 			if (bytes == 4)
 			{
+				uint32_t fragmentHeader = 0;
 				m_socketStream.SetInputSize(4);
 				m_socketStream.Read(&fragmentHeader);
-				fragmentHeaderMsb = (int)(fragmentHeader & 0x80000000);
-				fragmentHeaderLengthBytes = (int)(fragmentHeader ^ 0x80000000) + 4;
+				const int fragmentHeaderMsb = (int)(fragmentHeader & 0x80000000);
+				const int fragmentHeaderLengthBytes = fragmentHeaderMsb + 4;
 				while (bytes != fragmentHeaderLengthBytes)
 				{
 					bytes = recv(m_socket, (char*)m_socketStream.GetInput(), fragmentHeaderLengthBytes, MSG_PEEK);
@@ -178,11 +160,11 @@ try
 
 		if (bytes > 0)
 		{
-			m_socketStream.SetInputSize(bytes);  //bytes received
+			m_socketStream.SetInputSize(bytes);  // bytes received
 
 			if (m_listener != nullptr)
 			{
-				m_listener->SocketReceived(this);  //notify listener
+				m_listener->SocketReceived(this);  // notify listener
 			}
 		}
 		else
@@ -195,5 +177,5 @@ try
 }
 catch (const std::exception& e)
 {
-	std::cerr << "socket operation failed: " << e.what() << std::endl;
+	BOOST_LOG_TRIVIAL(error) << "socket operation failed: " << e.what();
 }

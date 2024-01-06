@@ -10,6 +10,7 @@
 #include "SocketListener.h"
 #include "SocketStream.h"
 #include <winsock2.h>
+#include <thread>
 
 class Socket
 {
@@ -35,7 +36,7 @@ private:
 	ISocketListener* m_listener;
 	SocketStream m_socketStream;
 	bool m_active;
-	HANDLE m_thread;
+	std::thread m_thread;
 };
 
 #endif // ICENFSD_SOCKET_H
