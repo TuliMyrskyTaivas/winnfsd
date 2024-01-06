@@ -8,6 +8,7 @@
 #include <boost/test/unit_test.hpp>
 #include <filesystem>
 #include <fstream>
+#include <vector>
 namespace fs = std::filesystem;
 
 #include "../src/Settings.cpp"
@@ -81,7 +82,25 @@ BOOST_FIXTURE_TEST_CASE(ValidExport, ParseExportsFileFixture)
 	BOOST_CHECK_EQUAL(item.first, "C:\\Temp");
 	BOOST_CHECK_EQUAL(item.second, "/test");
 }
-BOOST_AUTO_TEST_SUITE_END();
+BOOST_AUTO_TEST_SUITE_END()
+
+/////////////////////////////////////////////////////////////////////
+bool operator== (const sockaddr_in& l, const sockaddr_in& r)
+{
+	return l.sin_family == r.sin_family && l.sin_port == r.sin_port
+		&& l.sin_addr.S_un.S_addr == r.sin_addr.S_un.S_addr;
+}
+
+/////////////////////////////////////////////////////////////////////
+std::ostream& operator << (std::ostream& out, const sockaddr_in& value)
+{
+	constexpr const size_t bufSize = 128;
+	char buf[bufSize];
+
+	out << "sin_family=" << value.sin_family << ",sin_port=" << ntohs(value.sin_port)
+		<< ",sin_addr=" << inet_ntop(value.sin_family, &(value.sin_addr), buf, bufSize);
+	return out;
+}
 
 /////////////////////////////////////////////////////////////////////
 BOOST_AUTO_TEST_SUITE(TestBuildEndpoint)
@@ -110,4 +129,37 @@ BOOST_AUTO_TEST_CASE(ValidInput)
 	BOOST_CHECK_EQUAL(addrBytes.s_b2, 0);
 	BOOST_CHECK_EQUAL(addrBytes.s_b1, 127);
 }
-BOOST_AUTO_TEST_SUITE_END();
+BOOST_AUTO_TEST_SUITE_END()
+
+/////////////////////////////////////////////////////////////////////
+BOOST_AUTO_TEST_SUITE(TestSettings)
+BOOST_AUTO_TEST_CASE(InvalidCommandLine)
+{
+	char* commandLine[] = { "icenfsd.exe", "-u", "ice" };
+	BOOST_CHECK_THROW(Settings(3, commandLine), std::runtime_error);
+}
+BOOST_AUTO_TEST_CASE(DefaultSettings)
+{
+	char* commandLine[] = {
+		"icenfsd.exe"
+	};
+	std::unique_ptr<Settings> settings;
+	BOOST_CHECK_NO_THROW(settings = std::make_unique<Settings>(1, commandLine));
+	BOOST_CHECK_EQUAL(settings->GetUid(), 0U);
+	BOOST_CHECK_EQUAL(settings->GetGid(), 0U);
+	BOOST_CHECK(settings->GetExports().empty());
+
+	const sockaddr_in expectedNfsEndpoint = {
+		AF_INET, htons((unsigned)Port::Nfs), 0
+	};
+	const sockaddr_in expectedPortmapEndpoint = {
+		AF_INET, htons((unsigned)Port::Portmap), 0
+	};
+	const sockaddr_in expectedMountEndpoint = {
+		AF_INET, htons((unsigned)Port::Mount), 0
+	};
+	BOOST_CHECK_EQUAL(expectedNfsEndpoint, settings->GetNfsEndpoint());
+	BOOST_CHECK_EQUAL(expectedPortmapEndpoint, settings->GetRpcEndpoint());
+	BOOST_CHECK_EQUAL(expectedMountEndpoint, settings->GetMountEndpoint());
+}
+BOOST_AUTO_TEST_SUITE_END()
