@@ -31,7 +31,7 @@ public:
 	size_t GetSize() const noexcept override;
 
 	// IOutputStream implementation
-	void Write(void* data, size_t size) override;
+	void Write(const void* data, size_t size) override;
 	void Write(uint32_t value) override;
 	void Write8(uint64_t value) override;
 	void Seek(off_t offset, int from) override;

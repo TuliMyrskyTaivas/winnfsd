@@ -10,10 +10,9 @@
 #include <boost/log/trivial.hpp>
 
 /////////////////////////////////////////////////////////////////////
-NFSProg::NFSProg()
+NFSProg::NFSProg(std::shared_ptr<FileTable> fileTable, unsigned int uid, unsigned int gid)
 	: RPCProg()
-	, m_uid(0)
-	, m_gid(0)
+	, m_nfs3(std::make_unique<NFS3Prog>(fileTable, uid, gid))
 {}
 
 /////////////////////////////////////////////////////////////////////
@@ -21,19 +20,11 @@ NFSProg::~NFSProg()
 {}
 
 /////////////////////////////////////////////////////////////////////
-void NFSProg::SetUserID(unsigned int uid, unsigned int gid)
-{
-	m_uid = uid;
-	m_gid = gid;
-}
-
-/////////////////////////////////////////////////////////////////////
 int NFSProg::Process(IInputStream& inStream, IOutputStream& outStream, RPCParam& param)
 {
 	if (param.version == 3)
 	{
-		NFS3Prog nfs3(m_uid, m_gid);
-		return nfs3.Process(inStream, outStream, param);
+		return m_nfs3->Process(inStream, outStream, param);
 	}
 	else
 	{

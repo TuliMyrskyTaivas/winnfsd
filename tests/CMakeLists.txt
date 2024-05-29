@@ -4,6 +4,7 @@ add_compile_definitions (BOOST_USE_WINAPI_VERSION=0x0600)
 
 add_executable (icenfsd_tests
     settings_tests.cpp
+    socket_stream_tests.cpp
     main.cpp
 )
 

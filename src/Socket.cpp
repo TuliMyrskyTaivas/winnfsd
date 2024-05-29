@@ -140,8 +140,7 @@ try
 				uint32_t fragmentHeader = 0;
 				m_socketStream.SetInputSize(4);
 				m_socketStream.Read(&fragmentHeader);
-				const int fragmentHeaderMsb = (int)(fragmentHeader & 0x80000000);
-				const int fragmentHeaderLengthBytes = fragmentHeaderMsb + 4;
+				const int fragmentHeaderLengthBytes = (int)(fragmentHeader ^ 0x80000000) + 4;
 				while (bytes != fragmentHeaderLengthBytes)
 				{
 					bytes = recv(m_socket, (char*)m_socketStream.GetInput(), fragmentHeaderLengthBytes, MSG_PEEK);

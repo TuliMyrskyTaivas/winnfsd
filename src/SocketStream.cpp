@@ -124,7 +124,7 @@ size_t SocketStream::GetSize() const noexcept
 }
 
 /////////////////////////////////////////////////////////////////////
-void SocketStream::Write(void* data, size_t size)
+void SocketStream::Write(const void* data, size_t size)
 {
 	if (m_outBufferIndex + size > MAXDATA) //over the size of output buffer
 	{

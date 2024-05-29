@@ -9,6 +9,7 @@
 
 #include "RPCProg.h"
 #include <vector>
+#include <memory>
 #include <string>
 #include <map>
 
@@ -21,9 +22,12 @@ enum PathFormat
 	FORMAT_PATHALIAS = 2
 };
 
+class FileTable;
+
 class MountProg : public RPCProg
 {
 public:
+	MountProg(std::shared_ptr<FileTable> fileTable);
 	virtual ~MountProg() = default;
 
 	void Export(const std::string& path, const std::string& alias);
@@ -45,7 +49,8 @@ protected:
 
 private:
 	std::string GetPath(IInputStream& inStreams);
-	char* GetPath(int& pathNumber);
+
+	std::shared_ptr<FileTable> m_fileTable;
 };
 
 #endif // ICENFSD_MOUNTPROG_H

@@ -46,6 +46,11 @@ enum
 };
 
 /////////////////////////////////////////////////////////////////////
+MountProg::MountProg(std::shared_ptr<FileTable> fileTable)
+	: m_fileTable(fileTable)
+{}
+
+/////////////////////////////////////////////////////////////////////
 void MountProg::Export(const std::string& path, const std::string& alias)
 {
 	const auto formattedPath = FormatPath(path, FORMAT_PATH);
@@ -95,16 +100,17 @@ int MountProg::ProcedureMNT(IInputStream& inStream, IOutputStream& outStream, RP
 		return PRC_OK;
 	}
 
-	const auto handle = GetFileHandle(path.c_str());
+	const auto handle = m_fileTable->GetFileHandle(path);
+	const char* handleData = reinterpret_cast<const char*>(&handle);
 	outStream.Write(MNT_OK); //OK
 	if (param.version == 1)
 	{
-		outStream.Write(handle, FHSIZE);  //fhandle
+		outStream.Write(handleData, NFS_FHSIZE);  //fhandle
 	}
 	else
 	{
 		outStream.Write(NFS3_FHSIZE);  //length
-		outStream.Write(handle, NFS3_FHSIZE);  //fhandle
+		outStream.Write(handleData, NFS3_FHSIZE);  //fhandle
 		outStream.Write(0);  //flavor
 	}
 

@@ -9,17 +9,21 @@
 
 #include "RPCProg.h"
 
+#include <memory>
+
+class FileTable;
+class NFS3Prog;
+
 class NFSProg : public RPCProg
 {
 public:
-	NFSProg();
+	NFSProg(std::shared_ptr<FileTable> fileTable, unsigned int uid, unsigned int gid);
 	~NFSProg();
 
-	void SetUserID(unsigned int uid, unsigned int gid);
 	int Process(IInputStream& inStream, IOutputStream& outStream, RPCParam& param) override;
 
 private:
-	unsigned int m_uid, m_gid;
+	std::unique_ptr<NFS3Prog> m_nfs3;
 };
 
 #endif // ICENFSD_NFSPROG_H

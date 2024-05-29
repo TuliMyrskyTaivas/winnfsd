@@ -10,6 +10,7 @@
 #include "RPCProg.h"
 
 #include <string>
+#include <memory>
 #include <windows.h>
 #include <unordered_map>
 
@@ -46,10 +47,12 @@ struct SymlinkData3;
 struct WccAttr;
 struct WccData;
 
+class FileTable;
+
 class NFS3Prog : public RPCProg
 {
 public:
-	NFS3Prog(unsigned int uid, unsigned int gid);
+	NFS3Prog(std::shared_ptr<FileTable> fileTable, unsigned int uid, unsigned int gid);
 	~NFS3Prog() = default;
 
 	int Process(IInputStream& inStream, IOutputStream& outStream, RPCParam& param) override;
@@ -92,6 +95,8 @@ private:
 	bool GetFileAttributesForNFS(const std::string& path, FAttr3* pAttr);
 	UINT32 FileTimeToPOSIX(FILETIME ft);
 	std::unordered_map<int, FILE*> unstableStorageFile;
+
+	std::shared_ptr<FileTable> m_fileTable;
 };
 
 #endif // ICENFSD_NFS3PROG_H

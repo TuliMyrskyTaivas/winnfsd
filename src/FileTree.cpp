@@ -10,14 +10,11 @@
 #include <stdio.h>
 #include <windows.h>
 #include <sys/stat.h>
-#include "tree.hh"
+
 #include "conv.h"
 
-static tree<FileItem> filesTree;
-static tree<FileItem>::iterator topNode;
-
 /////////////////////////////////////////////////////////////////////
-std::string FirstDirname(const std::string& path)
+static std::string FirstDirname(const std::string& path)
 {
 	auto wcs = ConvFromCp932(path.c_str());
 	if (wcs == nullptr)
@@ -40,7 +37,7 @@ std::string FirstDirname(const std::string& path)
 }
 
 /////////////////////////////////////////////////////////////////////
-std::string Dirname932(const std::string& path)
+static std::string Dirname932(const std::string& path)
 {
 	auto wcs = ConvFromCp932(path.c_str());
 	auto result = path.find('\\') != std::string::npos ? path.substr(0, path.find_last_of('\\')) : std::string("");
@@ -66,7 +63,7 @@ std::string Dirname932(const std::string& path)
 }
 
 /////////////////////////////////////////////////////////////////////
-std::string FollowingPath(const std::string& path)
+static std::string FollowingPath(const std::string& path)
 {
 	auto wcs = ConvFromCp932(path.c_str());
 	if (wcs == nullptr)
@@ -90,7 +87,7 @@ std::string FollowingPath(const std::string& path)
 }
 
 /////////////////////////////////////////////////////////////////////
-std::string Basename932(const std::string& path)
+static std::string Basename932(const std::string& path)
 {
 	auto wcs = ConvFromCp932(path.c_str());
 	if (wcs == nullptr)
@@ -110,115 +107,98 @@ std::string Basename932(const std::string& path)
 }
 
 /////////////////////////////////////////////////////////////////////
-FileItem FileTree::AddItem(const char* absolutePath, unsigned char* handle)
+FileTree::Node FileTree::AddItem(const std::string& absolutePath, uint64_t handle)
 {
 	FileItem item;
 	item.handle = handle;
 	item.cached = false;
 
 	// If the tree is empty just add the new path as node on the top level.
-	if (filesTree.empty())
+	if (m_filesTree.empty())
 	{
-		item.path = new char[strlen(absolutePath) + 1];
-		strcpy_s(item.path, (strlen(absolutePath) + 1), absolutePath);
-		item.pathLen = static_cast<int>(strlen(item.path));
-
-		filesTree.set_head(item);
-		topNode = filesTree.begin();
+		item.path = absolutePath;
+		m_filesTree.set_head(item);
+		m_topNode = m_filesTree.begin();
 	}
 	else
 	{
 		// Check if the requested path belongs to an already registered parent node.
-		std::string sPath(absolutePath);
 		tree_node_<FileItem>* parentNode = FindParentNodeFromRootForPath(absolutePath);
-		std::string splittedPath = Basename932(sPath);
-		//printf("spl %s %s\n", splittedPath.c_str(), absolutePath);
-		item.path = new char[splittedPath.length() + 1];
-		strcpy_s(item.path, (splittedPath.length() + 1), splittedPath.c_str());
+		item.path = Basename932(absolutePath);
 		// If a parent was found use th parent.
 		if (parentNode)
 		{
-			//printf("parent %s\n", parentNode->data.path);
-			filesTree.append_child(tree<FileItem>::iterator_base(parentNode), item);
+			auto result = m_filesTree.append_child(tree<FileItem>::iterator_base(parentNode), item);
+			return result.node;
 		}
 		else
 		{
 			// Node wasn't found - most likely a new root - add it to the top level.
-			//printf("No parent node found for %s. Adding new sibbling.", absolutePath);
-			item.path = new char[strlen(absolutePath) + 1];
-			strcpy_s(item.path, (strlen(absolutePath) + 1), absolutePath);
-			item.pathLen = static_cast<int>(strlen(item.path));
-
-			filesTree.insert(tree<FileItem>::iterator_base(topNode), item);
-			topNode = filesTree.begin();
+			item.path = absolutePath;
+			m_filesTree.insert(tree<FileItem>::iterator_base(m_topNode), item);
+			m_topNode = m_filesTree.begin();
 		}
 	}
 
-	return item;
+	return m_topNode.node;
 }
 
 /////////////////////////////////////////////////////////////////////
-void FileTree::RemoveItem(const char* absolutePath)
+void FileTree::RemoveItem(const std::string& absolutePath)
 {
-	tree_node_<FileItem>* node = FindNodeFromRootWithPath(absolutePath);
+	auto node = FindNodeFromRootWithPath(absolutePath);
 	if (node != nullptr) {
-		filesTree.erase(tree<FileItem>::iterator(node));
+		m_filesTree.erase(tree<FileItem>::iterator(node));
 	}
 }
 
 /////////////////////////////////////////////////////////////////////
-void FileTree::RenameItem(const char* absolutePathFrom, const char* absolutePathTo)
+void FileTree::RenameItem(const std::string& absolutePathFrom, const std::string& absolutePathTo)
 {
-	tree_node_<FileItem>* node = FindNodeFromRootWithPath(absolutePathFrom);
-	tree_node_<FileItem>* parentNode = FindParentNodeFromRootForPath(absolutePathTo);
+	auto node = FindNodeFromRootWithPath(absolutePathFrom);
+	auto parentNode = FindParentNodeFromRootForPath(absolutePathTo);
 
 	if (parentNode != nullptr && node != nullptr)
 	{
-		if (filesTree.number_of_children(parentNode) < 1)
+		if (m_filesTree.number_of_children(parentNode) < 1)
 		{
-			FileItem emptyItem;
-			emptyItem.pathLen = 0;
-			emptyItem.path = const_cast<char*>("");
-			filesTree.append_child(tree<FileItem>::iterator_base(parentNode), emptyItem);
+			FileItem emptyItem{};
+			m_filesTree.append_child(tree<FileItem>::iterator_base(parentNode), emptyItem);
 		}
-		tree<FileItem>::iterator firstChild = filesTree.begin(parentNode);
-		filesTree.move_after(firstChild, tree<FileItem>::iterator(node));
-
-		std::string sPath(absolutePathTo);
-		std::string splittedPath = sPath.substr(sPath.find_last_of('\\') + 1);
-		node->data.path = new char[splittedPath.length() + 1];
-		strcpy_s(node->data.path, (splittedPath.length() + 1), splittedPath.c_str());
+		tree<FileItem>::iterator firstChild = m_filesTree.begin(parentNode);
+		m_filesTree.move_after(firstChild, tree<FileItem>::iterator(node));
+		node->data.path = absolutePathTo.substr(absolutePathTo.find_last_of('\\') + 1);
 	}
 }
 
 /////////////////////////////////////////////////////////////////////
-tree_node_<FileItem>* FileTree::FindFileItemForPath(const char* absolutePath)
+FileTree::Node FileTree::FindFileItemForPath(const std::string& absolutePath)
 {
 	return FindNodeFromRootWithPath(absolutePath);
 }
 
 /////////////////////////////////////////////////////////////////////
-tree_node_<FileItem>* FileTree::FindNodeFromRootWithPath(const char* path)
+FileTree::Node FileTree::FindNodeFromRootWithPath(const std::string& path)
 {
 	// No topNode - bail out.
-	if (topNode.node == nullptr)
+	if (m_topNode.node == nullptr)
 	{
 		return nullptr;
 	}
-	std::string sPath(path);
-	std::string nPath(topNode->path);
+
+	const std::string& rootPath = m_topNode->path;
 	// topNode path and requested path are the same? Use the node.
-	if (sPath == nPath)
+	if (path == rootPath)
 	{
-		return topNode.node;
+		return m_topNode.node;
 	}
 
 	// If the topNode path is part of the requested path this is a subpath.
 	// Use the node.
-	if (sPath.find(nPath) != std::string::npos)
+	if (path.find(rootPath) != std::string::npos)
 	{
-		std::string splittedString = sPath.substr(strlen(topNode->path) + 1);
-		return FindNodeWithPathFromNode(splittedString.c_str(), topNode.node);
+		std::string subPath = path.substr(m_topNode->path.length() + 1);
+		return FindNodeWithPathFromNode(subPath, m_topNode.node);
 	}
 	else
 	{
@@ -226,22 +206,22 @@ tree_node_<FileItem>* FileTree::FindNodeFromRootWithPath(const char* path)
 		// iterate over all _top_ level elements in the tree to look for
 		// a matching item and register it as current top node.
 		tree<FileItem>::sibling_iterator it;
-		for (it = filesTree.begin(); it != filesTree.end(); it++)
+		for (it = m_filesTree.begin(); it != m_filesTree.end(); it++)
 		{
-			std::string itPath(it.node->data.path);
+			const std::string& itPath = it.node->data.path;
 			// Current item path matches the requested path - use the item as topNode.
-			if (sPath == itPath)
+			if (path == itPath)
 			{
-				topNode = it;
+				m_topNode = it;
 				return it.node;
 			}
-			else if (sPath.find(itPath) != std::string::npos)
+			else if (path.find(itPath) != std::string::npos)
 			{
 				// If the item path is part of the requested path this is a subpath.
 				// Use the the item as topNode and continue analyzing.
-				topNode = it;
-				std::string splittedString = sPath.substr(itPath.length() + 1);
-				return FindNodeWithPathFromNode(splittedString.c_str(), it.node);
+				m_topNode = it;
+				std::string subPath = path.substr(itPath.length() + 1);
+				return FindNodeWithPathFromNode(subPath.c_str(), it.node);
 			}
 		}
 	}
@@ -250,10 +230,10 @@ tree_node_<FileItem>* FileTree::FindNodeFromRootWithPath(const char* path)
 }
 
 /////////////////////////////////////////////////////////////////////
-tree_node_<FileItem>* FileTree::FindNodeWithPathFromNode(const char* path, tree_node_<FileItem>* node)
+FileTree::Node FileTree::FindNodeWithPathFromNode(const std::string& path, tree_node_<FileItem>* node) const
 {
-	tree<FileItem>::sibling_iterator sib = filesTree.begin(node);
-	tree<FileItem>::sibling_iterator end = filesTree.end(node);
+	tree<FileItem>::sibling_iterator sib = m_filesTree.begin(node);
+	tree<FileItem>::sibling_iterator end = m_filesTree.end(node);
 
 	std::string currentPath = FirstDirname(path);
 	std::string followingPath = FollowingPath(path);
@@ -261,7 +241,7 @@ tree_node_<FileItem>* FileTree::FindNodeWithPathFromNode(const char* path, tree_
 
 	while (sib != end)
 	{
-		if (strcmp(sib->path, currentPath.c_str()) == 0)
+		if (sib->path == currentPath)
 		{
 			if (currentLevel)
 			{
@@ -269,7 +249,7 @@ tree_node_<FileItem>* FileTree::FindNodeWithPathFromNode(const char* path, tree_
 			}
 			else
 			{
-				return FindNodeWithPathFromNode(followingPath.c_str(), sib.node);
+				return FindNodeWithPathFromNode(followingPath, sib.node);
 			}
 		}
 		++sib;
@@ -278,33 +258,33 @@ tree_node_<FileItem>* FileTree::FindNodeWithPathFromNode(const char* path, tree_
 }
 
 /////////////////////////////////////////////////////////////////////
-tree_node_<FileItem>* FileTree::FindParentNodeFromRootForPath(const char* path)
+FileTree::Node FileTree::FindParentNodeFromRootForPath(const std::string& path) const
 {
-	std::string sPath(path);
-	std::string nPath(topNode->path);
+	const std::string& rootPath = m_topNode->path;
 
 	// If the topNode path is not part of the requested path bail out.
 	// This avoids also issues with taking substrings of incompatible
 	// paths below.
-	if (sPath.find(nPath) == std::string::npos)
+	if (path.find(rootPath) == std::string::npos)
 	{
 		return nullptr;
 	}
-	std::string currentPath = sPath.substr(strlen(topNode->path) + 1);
+	std::string currentPath = path.substr(rootPath.length() + 1);
 	std::string followingPath = Dirname932(currentPath);
 	if (followingPath.empty())
 	{
-		return topNode.node;
+		return m_topNode.node;
 	}
 	else
 	{
-		return FindNodeWithPathFromNode(followingPath.c_str(), topNode.node);
+		return FindNodeWithPathFromNode(followingPath, m_topNode.node);
 	}
 }
 
 /////////////////////////////////////////////////////////////////////
 void FileTree::GetNodeFullPath(tree_node_<FileItem>* node, std::string& path)
 {
+	// TODO: refactor this, we build string from bottom to top
 	path.append(node->data.path);
 	tree_node_<FileItem>* parentNode = node->parent;
 	while (parentNode != nullptr)

@@ -16,7 +16,7 @@ public:
 	/// <summary> Write buffer of specified length to the stream </summary>
 	/// <param name="data"> Pointer to the buffer </param>
 	/// <param name="size"> Amount of bytes to write </param>
-	virtual void Write(void* data, size_t size) = 0;
+	virtual void Write(const void* data, size_t size) = 0;
 	/// <summary> Write uint32_t value to the stream </summary>
 	/// <param name="value"> A value to write </param>
 	virtual void Write(uint32_t value) = 0;

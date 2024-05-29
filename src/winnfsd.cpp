@@ -9,6 +9,7 @@
 #include "PortmapProg.h"
 #include "NFSProg.h"
 #include "MountProg.h"
+#include "FileTable.h"
 #include "ServerSocket.h"
 #include "DatagramSocket.h"
 #include "Settings.h"
@@ -65,14 +66,14 @@ try
 	const Settings settings(argc, argv);
 	const WinSockHolder winsock{};
 
+	auto fileTable = std::make_shared<FileTable>();
 	auto rpcServer = std::make_unique<RPCServer>();
 	auto portMapper = std::make_unique<PortmapProg>();
-	auto nfsServer = std::make_unique<NFSProg>();
-	auto mountServer = std::make_unique<MountProg>();
+	auto nfsServer = std::make_unique<NFSProg>(fileTable, settings.GetUid(), settings.GetGid());
+	auto mountServer = std::make_unique<MountProg>(fileTable);
 
 	portMapper->Set(PROG_MOUNT, MOUNT_PORT);  // map port for mount
 	portMapper->Set(PROG_NFS, NFS_PORT);      // map port for nfs
-	nfsServer->SetUserID(settings.GetUid(), settings.GetGid());  //set uid and gid of files
 
 	for (const auto& mountPoint : settings.GetExports())
 	{
